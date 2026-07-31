@@ -6,6 +6,7 @@
 ?>
 <section class="panel">
     <div class="panel-title">文面提案</div>
+    <p class="section-help">配信したい内容を入力すると、AIが件名、テキスト本文、HTML本文の下書きを作ります。生成結果はそのまま送信されず、テンプレート化してから使います。</p>
     <?php if (!$apiKeyReady): ?>
         <div class="alert alert-warning">OpenAI APIキーが未設定です。システム設定でAPIキーを保存してください。</div>
     <?php endif; ?>
@@ -16,10 +17,12 @@
             <div class="col-md-6">
                 <label class="form-label" for="purpose">配信目的</label>
                 <input class="form-control" id="purpose" name="purpose" required>
+                <div class="form-help">何のために送るメールかを短く書きます。例: 新機能のお知らせ、更新手続きの案内。</div>
             </div>
             <div class="col-md-6">
                 <label class="form-label" for="audience">対象者</label>
                 <input class="form-control" id="audience" name="audience" required>
+                <div class="form-help">誰に向けた文面かを指定します。例: 既存顧客、セミナー申込者、管理者。</div>
             </div>
             <div class="col-md-4">
                 <label class="form-label" for="tone">トーン</label>
@@ -29,27 +32,33 @@
                     <option value="法人向けで堅実">法人向けで堅実</option>
                     <option value="緊急性を抑えて明確">緊急性を抑えて明確</option>
                 </select>
+                <div class="form-help">文章の雰囲気です。迷う場合は「丁寧で簡潔」を選びます。</div>
             </div>
             <div class="col-md-4">
                 <label class="form-label" for="length">文字数目安</label>
                 <input class="form-control" id="length" name="length" value="600字程度">
+                <div class="form-help">本文の長さの目安です。短い案が必要なら「300字程度」と入力します。</div>
             </div>
             <div class="col-md-4 form-check align-self-end ms-2">
                 <input class="form-check-input" id="with_html" name="with_html" type="checkbox" value="1" checked>
                 <label class="form-check-label" for="with_html">HTML本文も生成</label>
+                <div class="form-help">HTMLメールも使う場合はオンにします。テキストだけでよければオフにします。</div>
             </div>
         </div>
         <div>
             <label class="form-label" for="product">商品/サービス概要</label>
             <textarea class="form-control" id="product" name="product" rows="3" required></textarea>
+            <div class="form-help">知らせたい商品、サービス、機能、イベントの概要を書きます。</div>
         </div>
         <div>
             <label class="form-label" for="points">伝えたい要点</label>
             <textarea class="form-control" id="points" name="points" rows="4" required></textarea>
+            <div class="form-help">必ず含めたい内容を箇条書きで入れます。価格、期限、注意事項があればここに書きます。</div>
         </div>
         <div>
             <label class="form-label" for="cta">CTA</label>
             <input class="form-control" id="cta" name="cta" placeholder="例: 問い合わせフォームから相談する">
+            <div class="form-help">読んだ後に取ってほしい行動です。例: 予約する、資料を見る、管理画面を確認する。</div>
         </div>
         <button class="btn btn-primary" type="submit" <?= $apiKeyReady ? '' : 'disabled' ?>>生成</button>
     </form>
@@ -71,6 +80,7 @@
 
 <section class="panel">
     <div class="panel-title">最近の生成結果</div>
+    <p class="section-help">良い下書きができたら「テンプレート化」を押します。テンプレート化後に編集、テスト送信、キャンペーン作成へ進めます。</p>
     <div class="table-responsive">
         <table class="table table-hover align-middle">
             <thead><tr><th>ID</th><th>件名</th><th>モデル</th><th>実行者</th><th>日時</th><th>採用</th></tr></thead>

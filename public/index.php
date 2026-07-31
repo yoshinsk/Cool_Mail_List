@@ -25,6 +25,16 @@ if (Auth::check() && in_array($route, ['login', 'register'], true)) {
     redirect_route('dashboard');
 }
 
+if (Auth::check() && !in_array($route, $publicRoutes, true) && !route_allowed_for_user($route)) {
+    http_response_code(403);
+    render('error', [
+        'title' => '権限がありません',
+        'active' => '',
+        'message' => 'この機能を利用できる権限がありません。表示されているメニューから操作してください。',
+    ]);
+    exit;
+}
+
 try {
     match ($route) {
         'login' => handle_login(),
@@ -40,6 +50,7 @@ try {
         'templates' => handle_templates(),
         'template_edit' => handle_template_edit(),
         'template_compare' => handle_template_compare(),
+        'template_delete' => handle_template_delete(),
         'ai' => handle_ai(),
         'test_send' => handle_test_send(),
         'campaigns' => handle_campaigns(),
@@ -173,6 +184,7 @@ function handle_logout(): void
 function handle_dashboard(): void
 {
     $orgId = OrganizationService::currentId();
+    $canViewAudit = route_allowed_for_user('audit');
     $stats = [
         'recipients' => Database::fetch('SELECT COUNT(*) AS c FROM recipients WHERE organization_id = ?', [$orgId])['c'] ?? 0,
         'active' => Database::fetch('SELECT COUNT(*) AS c FROM recipients WHERE organization_id = ? AND status = "active"', [$orgId])['c'] ?? 0,
@@ -181,8 +193,14 @@ function handle_dashboard(): void
         'bounced' => Database::fetch('SELECT COUNT(*) AS c FROM recipients WHERE organization_id = ? AND status IN ("hard_bounced", "soft_bounced")', [$orgId])['c'] ?? 0,
         'unsubscribed' => Database::fetch('SELECT COUNT(*) AS c FROM recipients WHERE organization_id = ? AND status = "unsubscribed"', [$orgId])['c'] ?? 0,
     ];
-    $recentLogs = Database::fetchAll('SELECT * FROM audit_logs ORDER BY id DESC LIMIT 8');
-    render('dashboard', ['title' => 'ダッシュボード', 'active' => 'dashboard', 'stats' => $stats, 'recentLogs' => $recentLogs]);
+    $recentLogs = $canViewAudit ? Database::fetchAll('SELECT * FROM audit_logs ORDER BY id DESC LIMIT 8') : [];
+    render('dashboard', [
+        'title' => 'ダッシュボード',
+        'active' => 'dashboard',
+        'stats' => $stats,
+        'recentLogs' => $recentLogs,
+        'canViewAudit' => $canViewAudit,
+    ]);
 }
 
 function handle_recipients(): void
@@ -411,6 +429,33 @@ function handle_template_compare(): void
         'textDiff' => TemplateVersionService::diff($left['body_text'], $right['body_text']),
         'htmlDiff' => TemplateVersionService::diff((string)$left['body_html'], (string)$right['body_html']),
     ]);
+}
+
+function handle_template_delete(): void
+{
+    Auth::requireRole(['system_admin']);
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        redirect_route('templates');
+    }
+
+    $orgId = OrganizationService::currentId();
+    $id = (int)($_POST['id'] ?? 0);
+    $template = Database::fetch('SELECT * FROM mail_templates WHERE id = ? AND organization_id = ? LIMIT 1', [$id, $orgId]);
+    if (!$template) {
+        Session::flash('error', '削除対象のテンプレートが見つかりません。');
+        redirect_route('templates');
+    }
+
+    $campaigns = Database::fetch('SELECT COUNT(*) AS c FROM campaigns WHERE template_id = ? AND organization_id = ?', [$id, $orgId]);
+    if ((int)($campaigns['c'] ?? 0) > 0) {
+        Session::flash('error', 'このテンプレートはキャンペーンで使用中のため削除できません。先に該当キャンペーンを確認してください。');
+        redirect_route('templates');
+    }
+
+    Database::execute('DELETE FROM mail_templates WHERE id = ? AND organization_id = ?', [$id, $orgId]);
+    AuditLogger::log('template_deleted', ['template_id' => $id, 'name' => $template['name']]);
+    Session::flash('success', 'テンプレートを削除しました。');
+    redirect_route('templates');
 }
 
 function handle_ai(): void
@@ -762,4 +807,44 @@ function normalize_datetime(string $value): string
         return $value;
     }
     return date('Y-m-d H:i:s');
+}
+
+function route_roles(): array
+{
+    $all = ['system_admin', 'delivery_admin', 'sender', 'editor', 'viewer'];
+    return [
+        'dashboard' => $all,
+        'logout' => $all,
+        'recipients' => ['system_admin', 'delivery_admin'],
+        'import' => ['system_admin', 'delivery_admin'],
+        'senders' => ['system_admin', 'delivery_admin'],
+        'dns_checks' => ['system_admin', 'delivery_admin'],
+        'templates' => ['system_admin', 'delivery_admin', 'editor'],
+        'template_edit' => ['system_admin', 'delivery_admin', 'editor'],
+        'template_compare' => ['system_admin', 'delivery_admin', 'editor'],
+        'template_delete' => ['system_admin'],
+        'ai' => ['system_admin', 'delivery_admin', 'editor'],
+        'test_send' => ['system_admin', 'delivery_admin', 'editor'],
+        'campaigns' => ['system_admin', 'delivery_admin', 'sender'],
+        'queue_campaign' => ['system_admin', 'delivery_admin'],
+        'queue' => ['system_admin', 'delivery_admin', 'sender'],
+        'unsubscribes' => ['system_admin', 'delivery_admin'],
+        'bounces' => ['system_admin', 'delivery_admin'],
+        'organizations' => ['system_admin'],
+        'users' => ['system_admin'],
+        'settings' => ['system_admin'],
+        'audit' => ['system_admin'],
+    ];
+}
+
+function route_allowed_for_role(string $route, string $role): bool
+{
+    $roles = route_roles()[$route] ?? [];
+    return in_array($role, $roles, true);
+}
+
+function route_allowed_for_user(string $route): bool
+{
+    $user = current_user();
+    return $user !== null && route_allowed_for_role($route, (string)($user['role'] ?? ''));
 }

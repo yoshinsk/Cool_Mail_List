@@ -5,6 +5,8 @@
  */
 ?>
 <section class="panel">
+    <div class="panel-title">配信キュー一覧</div>
+    <p class="section-help">キャンペーンから作られた宛先別の送信予定です。pendingは送信待ち、sentは送信済み、temporary_failedは再試行対象です。</p>
     <div class="table-responsive">
         <table class="table table-hover align-middle">
             <thead><tr><th>ID</th><th>キャンペーン</th><th>宛先</th><th>状態</th><th>予約</th><th>送信</th><th>再試行</th><th>エラー</th></tr></thead>

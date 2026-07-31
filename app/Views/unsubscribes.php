@@ -5,6 +5,8 @@
  */
 ?>
 <section class="panel">
+    <div class="panel-title">購読停止一覧</div>
+    <p class="section-help">受信者が購読停止URLを開いて停止した履歴です。ここに載った宛先は配信対象から外れます。</p>
     <div class="table-responsive">
         <table class="table table-hover align-middle">
             <thead><tr><th>ID</th><th>メール</th><th>理由</th><th>日時</th></tr></thead>

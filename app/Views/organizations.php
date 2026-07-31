@@ -6,15 +6,26 @@
 ?>
 <section class="panel">
     <div class="panel-title">組織追加</div>
+    <p class="section-help">複数の運用単位を分けたい時に組織を作ります。宛先、送信者、テンプレート、キャンペーンは組織ごとに分かれます。</p>
     <form method="post" class="row g-3">
         <?= Csrf::field() ?>
-        <div class="col-md-5"><input class="form-control" name="name" placeholder="組織名" required></div>
-        <div class="col-md-5"><input class="form-control" name="slug" placeholder="public-slug" required></div>
+        <div class="col-md-5">
+            <label class="form-label" for="organization_name">組織名</label>
+            <input class="form-control" id="organization_name" name="name" placeholder="例: 東京営業部" required>
+            <div class="form-help">管理画面で表示される名前です。</div>
+        </div>
+        <div class="col-md-5">
+            <label class="form-label" for="organization_slug">スラッグ</label>
+            <input class="form-control" id="organization_slug" name="slug" placeholder="例: tokyo-sales" required>
+            <div class="form-help">公開登録URLに使う英数字の識別子です。後からURLとして共有されます。</div>
+        </div>
         <div class="col-md-2"><button class="btn btn-primary w-100" type="submit">作成</button></div>
     </form>
 </section>
 
 <section class="panel">
+    <div class="panel-title">組織一覧</div>
+    <p class="section-help">公開登録URLを配ると、その組織の宛先としてダブルオプトイン登録されます。</p>
     <div class="table-responsive">
         <table class="table table-hover align-middle">
             <thead><tr><th>ID</th><th>組織名</th><th>スラッグ</th><th>状態</th><th>公開登録URL</th></tr></thead>

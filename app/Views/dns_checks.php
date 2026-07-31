@@ -6,15 +6,18 @@
 ?>
 <section class="panel">
     <div class="panel-title">診断実行</div>
+    <p class="section-help">送信者のFromドメインとSMTPホストを確認します。本配信前にMX、SPF、DKIM、DMARC、PTRが整っているか見てください。</p>
     <form method="post" class="row g-3">
         <?= Csrf::field() ?>
         <div class="col-md-8">
-            <select class="form-select" name="sender_identity_id" required>
+            <label class="form-label" for="sender_identity_id">診断する送信者</label>
+            <select class="form-select" id="sender_identity_id" name="sender_identity_id" required>
                 <option value="">送信者を選択</option>
                 <?php foreach ($senders as $sender): ?>
                     <option value="<?= h((string)$sender['id']) ?>"><?= h($sender['from_name'] . ' <' . $sender['from_email'] . '>') ?></option>
                 <?php endforeach; ?>
             </select>
+            <div class="form-help">Fromメールのドメインを基準にDNSを調べます。</div>
         </div>
         <div class="col-md-4"><button class="btn btn-primary w-100" type="submit">DNS診断</button></div>
     </form>
@@ -47,6 +50,7 @@
 
 <section class="panel">
     <div class="panel-title">診断履歴</div>
+    <p class="section-help">過去の診断結果です。missingやwarningがある場合は、DNS設定を修正してから再診断してください。</p>
     <div class="table-responsive">
         <table class="table table-hover align-middle">
             <thead><tr><th>ID</th><th>From</th><th>MX</th><th>SPF</th><th>DKIM</th><th>DMARC</th><th>PTR</th><th>日時</th></tr></thead>

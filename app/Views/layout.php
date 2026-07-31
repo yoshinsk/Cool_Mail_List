@@ -7,7 +7,7 @@ declare(strict_types=1);
  */
 
 $user = current_user();
-$nav = [
+$allNav = [
     ['dashboard', 'ダッシュボード'],
     ['recipients', '宛先管理'],
     ['import', 'インポート'],
@@ -24,6 +24,15 @@ $nav = [
     ['settings', 'システム設定'],
     ['audit', '監査ログ'],
 ];
+$nav = [];
+if ($user) {
+    $role = (string)($user['role'] ?? '');
+    foreach ($allNav as $item) {
+        if (route_allowed_for_role($item[0], $role)) {
+            $nav[] = $item;
+        }
+    }
+}
 ?>
 <!doctype html>
 <html lang="ja">
@@ -43,11 +52,14 @@ $nav = [
         </button>
         <div class="collapse navbar-collapse" id="mobileNav">
             <div class="navbar-nav">
-                <?php foreach ($nav as [$key, $label]): ?>
-                    <a class="nav-link <?= ($active ?? '') === $key ? 'active' : '' ?>" href="<?= h(route_url($key)) ?>"><?= h($label) ?></a>
-                <?php endforeach; ?>
                 <?php if ($user): ?>
+                    <?php foreach ($nav as [$key, $label]): ?>
+                        <a class="nav-link <?= ($active ?? '') === $key ? 'active' : '' ?>" href="<?= h(route_url($key)) ?>"><?= h($label) ?></a>
+                    <?php endforeach; ?>
                     <a class="nav-link" href="<?= h(route_url('logout')) ?>">ログアウト</a>
+                <?php else: ?>
+                    <a class="nav-link <?= ($active ?? '') === 'login' ? 'active' : '' ?>" href="<?= h(route_url('login')) ?>">ログイン</a>
+                    <a class="nav-link <?= ($active ?? '') === 'register' ? 'active' : '' ?>" href="<?= h(route_url('register')) ?>">利用者登録</a>
                 <?php endif; ?>
             </div>
         </div>

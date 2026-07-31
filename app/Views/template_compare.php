@@ -39,16 +39,19 @@ function render_diff_table(string $label, array $rows): void
 ?>
 <section class="panel">
     <div class="panel-title"><?= h($template['name']) ?></div>
+    <p class="section-help">左と右に比較したい版を選びます。色が付いた行が変更された箇所です。</p>
     <form method="get" class="row g-3">
         <input type="hidden" name="r" value="template_compare">
         <input type="hidden" name="id" value="<?= h((string)$template['id']) ?>">
         <div class="col-md-5">
             <label class="form-label" for="left">左</label>
             <select class="form-select" id="left" name="left"><?php render_version_options($versions, $leftKey); ?></select>
+            <div class="form-help">比較元にしたい版です。過去版を選ぶと変更前の内容を見られます。</div>
         </div>
         <div class="col-md-5">
             <label class="form-label" for="right">右</label>
             <select class="form-select" id="right" name="right"><?php render_version_options($versions, $rightKey); ?></select>
+            <div class="form-help">比較先にしたい版です。通常は現在版を選びます。</div>
         </div>
         <div class="col-md-2 align-self-end"><button class="btn btn-primary w-100" type="submit">比較</button></div>
     </form>

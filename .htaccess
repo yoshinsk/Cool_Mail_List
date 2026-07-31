@@ -1,0 +1,16 @@
+# C:\Users\Yoshi\Documents\GitHub\Cool_Mail_List\.htaccess
+# 公開ディレクトリ直下に配置した場合でも、アプリ本体・設定・ログ・DB定義へ直接アクセスさせない。
+
+DirectoryIndex index.php
+
+<FilesMatch "^(\.env|\.git|Readme\.md|README\.md|mail_delivery_system_requirements\.md)$">
+    Require all denied
+</FilesMatch>
+
+RedirectMatch 404 ^/(app|cron|database|storage)(/|$)
+
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set Referrer-Policy "same-origin"
+    Header set X-Frame-Options "SAMEORIGIN"
+</IfModule>

@@ -100,7 +100,7 @@ final class QueueService
         return 'SELECT
                     mq.id AS queue_id, mq.return_path_token, mq.unsubscribe_token,
                     r.email AS recipient_email, r.name AS recipient_name, r.company AS recipient_company, r.status AS recipient_status,
-                    si.from_name, si.from_email, si.reply_to, si.bounce_email,
+                    si.from_name, si.from_email, si.reply_to,
                     sa.smtp_host, sa.smtp_port, sa.encryption, sa.auth_username, sa.auth_password_ciphertext,
                     COALESCE(c.subject_override, mt.subject) AS subject, mt.body_text, mt.body_html
                 FROM mail_queue mq

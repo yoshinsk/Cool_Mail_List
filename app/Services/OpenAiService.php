@@ -8,6 +8,72 @@ declare(strict_types=1);
 
 final class OpenAiService
 {
+    public static function modelOptions(): array
+    {
+        return [
+            [
+                'id' => 'gpt-5.6-terra',
+                'name' => 'GPT-5.6 Terra',
+                'api' => 'Responses API',
+                'summary' => '品質とコストのバランスが良い標準候補。通常のメール文面提案に向く。',
+                'features' => 'テキスト生成、構造化JSON、長文コンテキスト、画像入力対応',
+                'cost_level' => '中',
+                'recommended' => true,
+            ],
+            [
+                'id' => 'gpt-5.6-luna',
+                'name' => 'GPT-5.6 Luna',
+                'api' => 'Responses API',
+                'summary' => 'コスト重視・大量生成向け。定型的な短文案やAB案の量産に向く。',
+                'features' => 'テキスト生成、構造化JSON、長文コンテキスト、画像入力対応',
+                'cost_level' => '低',
+                'recommended' => false,
+            ],
+            [
+                'id' => 'gpt-5.6-sol',
+                'name' => 'GPT-5.6 Sol',
+                'api' => 'Responses API',
+                'summary' => '最上位品質。重要な告知、複雑な説明、ブランドトーン調整に向く。',
+                'features' => 'テキスト生成、構造化JSON、長文コンテキスト、画像入力対応',
+                'cost_level' => '高',
+                'recommended' => false,
+            ],
+            [
+                'id' => 'gpt-5.6',
+                'name' => 'GPT-5.6 alias',
+                'api' => 'Responses API',
+                'summary' => 'GPT-5.6 Sol へ向く公式エイリアス。固定IDより将来差し替えを許容する場合に使う。',
+                'features' => 'テキスト生成、構造化JSON、長文コンテキスト、画像入力対応',
+                'cost_level' => '高',
+                'recommended' => false,
+            ],
+            [
+                'id' => 'gpt-5-mini',
+                'name' => 'GPT-5 mini',
+                'api' => 'Responses API',
+                'summary' => '旧世代の低遅延・低コスト候補。明確な指示の文面整形に向く。',
+                'features' => 'テキスト入出力、画像入力、推論トークン対応',
+                'cost_level' => '低',
+                'recommended' => false,
+            ],
+            [
+                'id' => 'gpt-5-nano',
+                'name' => 'GPT-5 nano',
+                'api' => 'Responses API',
+                'summary' => '最小コスト候補。分類、要約、短い件名案など限定用途向け。',
+                'features' => 'テキスト入出力、画像入力、推論トークン対応',
+                'cost_level' => '最低',
+                'recommended' => false,
+            ],
+        ];
+    }
+
+    public static function normalizeModel(string $model): string
+    {
+        $ids = array_column(self::modelOptions(), 'id');
+        return in_array($model, $ids, true) ? $model : 'gpt-5.6-terra';
+    }
+
     public static function generate(array $input, int $userId): array
     {
         $apiKey = SettingsService::getSecret('openai_api_key', (string)Config::get('openai.api_key', ''));
@@ -15,7 +81,7 @@ final class OpenAiService
             throw new RuntimeException('OpenAI APIキーが未設定です。');
         }
 
-        $model = SettingsService::get('openai_model', (string)Config::get('openai.model', 'gpt-5.6')) ?: 'gpt-5.6';
+        $model = self::normalizeModel(SettingsService::get('openai_model', (string)Config::get('openai.model', 'gpt-5.6-terra')) ?: 'gpt-5.6-terra');
         $prompt = self::buildPrompt($input);
         $requestId = self::saveRequest($userId, $model, $prompt);
         $payload = [

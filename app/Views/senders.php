@@ -12,7 +12,6 @@
         <div class="col-md-3"><input class="form-control" name="from_name" placeholder="From表示名" required></div>
         <div class="col-md-3"><input class="form-control" name="from_email" type="email" placeholder="Fromメール" required></div>
         <div class="col-md-3"><input class="form-control" name="reply_to" type="email" placeholder="Reply-To"></div>
-        <div class="col-md-3"><input class="form-control" name="bounce_email" type="email" placeholder="bounce@example.com"></div>
         <div class="col-md-3"><input class="form-control" name="smtp_host" placeholder="SMTPホスト" required></div>
         <div class="col-md-2"><input class="form-control" name="smtp_port" type="number" value="587" required></div>
         <div class="col-md-2">

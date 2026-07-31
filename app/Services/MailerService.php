@@ -59,7 +59,7 @@ final class MailerService
     public static function sendTest(int $senderId, int $templateId, string $to): array
     {
         $item = Database::fetch(
-            'SELECT si.from_name, si.from_email, si.reply_to, si.bounce_email,
+            'SELECT si.from_name, si.from_email, si.reply_to,
                     sa.smtp_host, sa.smtp_port, sa.encryption, sa.auth_username, sa.auth_password_ciphertext,
                     mt.subject, mt.body_text, mt.body_html,
                     ? AS recipient_email, ? AS recipient_name, "" AS recipient_company,
@@ -155,13 +155,17 @@ final class MailerService
 
     private static function returnPath(array $item): string
     {
-        if (!empty($item['bounce_email']) && str_contains($item['bounce_email'], '@')) {
-            [$local, $domain] = explode('@', $item['bounce_email'], 2);
-            return $local . '+' . $item['return_path_token'] . '@' . $domain;
+        $baseEmail = (string)Config::get('mail.bounce_base_email', 'mailsystem@fieltrust.jp');
+        if (!str_contains($baseEmail, '@')) {
+            throw new RuntimeException('BOUNCE_BASE_EMAIL が不正です。');
         }
+        return self::plusAddress($baseEmail, $item['return_path_token']);
+    }
 
-        $domain = Config::get('mail.bounce_domain', parse_url((string)Config::get('app.url'), PHP_URL_HOST) ?: 'localhost');
-        return 'bounce+' . $item['return_path_token'] . '@' . $domain;
+    private static function plusAddress(string $email, string $token): string
+    {
+        [$local, $domain] = explode('@', $email, 2);
+        return $local . '+' . $token . '@' . $domain;
     }
 
     private static function looksPermanent(string $message): bool

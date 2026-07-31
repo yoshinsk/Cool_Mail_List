@@ -67,7 +67,7 @@ final class BounceParser
 
     private static function extractToken(string $raw): ?string
     {
-        if (preg_match('/bounce\\+([a-z0-9_]+)@/i', $raw, $matches)) {
+        if (preg_match('/\\+([a-z0-9_]+)@/i', $raw, $matches)) {
             return $matches[1];
         }
         if (preg_match('/return_path_token=([a-z0-9_]+)/i', $raw, $matches)) {

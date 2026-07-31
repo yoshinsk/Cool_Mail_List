@@ -89,6 +89,7 @@ DB_USER=mailerdb
 DB_PASS=********
 QUEUE_BATCH_LIMIT=5
 BOUNCE_DOMAIN=mxnew.fieltrust.jp
+BOUNCE_BASE_EMAIL=mailsystem@fieltrust.jp
 SYSTEM_MAIL_FROM=mailsystem@fieltrust.jp
 SYSTEM_SMTP_HOST=mxnew.fieltrust.jp
 SYSTEM_SMTP_PORT=587
@@ -100,7 +101,7 @@ BOUNCE_IMAP_PORT=993
 BOUNCE_IMAP_ENCRYPTION=ssl
 BOUNCE_IMAP_USER=mailsystem@fieltrust.jp
 BOUNCE_IMAP_PASS=********
-OPENAI_MODEL=gpt-5.6
+OPENAI_MODEL=gpt-5.6-terra
 ```
 
 DB スキーマを適用します。
@@ -128,9 +129,11 @@ Plesk 環境では Web と CLI の PHP バージョン差を避けるため、PH
 
 バウンス取得は `.env` の `BOUNCE_IMAP_*` を使い、既定では `UNSEEN` のメールだけを処理して既読化します。
 
+Return-Path は送信者ごとに分けず、常に `BOUNCE_BASE_EMAIL` を基準にします。現在の標準は `mailsystem+rp_xxxxx@fieltrust.jp` です。Plesk/Postfix 側で plus addressing が有効な環境では、これらは `mailsystem@fieltrust.jp` の同一メールボックスに配送されます。
+
 ## AI 文面提案
 
-システム設定画面で OpenAI API キーとモデル名を保存します。API キーは `settings` テーブルに平文保存せず、`APP_KEY` を使って暗号化します。
+システム設定画面で OpenAI API キーとモデルを保存します。モデルは Responses API 対応候補を特徴付きリストから選択します。API キーは `settings` テーブルに平文保存せず、`APP_KEY` を使って暗号化します。
 
 文面提案画面では、配信目的、対象者、トーン、商品/サービス概要、要点、CTA、文字数目安を入力し、生成結果を `ai_generation_requests` と `ai_generation_results` に保存します。生成結果は直接送信せず、テンプレートとして採用してからキャンペーンで使用します。
 

@@ -26,6 +26,7 @@ final class Config
             'db.pass' => $env['DB_PASS'] ?? '',
             'queue.batch_limit' => max(1, (int)($env['QUEUE_BATCH_LIMIT'] ?? 5)),
             'mail.bounce_domain' => $env['BOUNCE_DOMAIN'] ?? '',
+            'mail.bounce_base_email' => $env['BOUNCE_BASE_EMAIL'] ?? 'mailsystem@fieltrust.jp',
             'mail.default_from_name' => $env['DEFAULT_FROM_NAME'] ?? 'Cool Mail List',
             'system_mail.from' => $env['SYSTEM_MAIL_FROM'] ?? '',
             'system_mail.from_name' => $env['SYSTEM_MAIL_FROM_NAME'] ?? 'Cool Mail List',
@@ -45,7 +46,7 @@ final class Config
             'google.client_id' => $env['GOOGLE_CLIENT_ID'] ?? '',
             'google.allowed_domain' => $env['GOOGLE_ALLOWED_DOMAIN'] ?? '',
             'openai.api_key' => $env['OPENAI_API_KEY'] ?? '',
-            'openai.model' => $env['OPENAI_MODEL'] ?? 'gpt-5.6',
+            'openai.model' => $env['OPENAI_MODEL'] ?? 'gpt-5.6-terra',
         ];
     }
 

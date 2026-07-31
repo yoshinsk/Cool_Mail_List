@@ -217,14 +217,13 @@ function handle_senders(): void
         $smtpId = Database::lastInsertId();
         Database::execute(
             'INSERT INTO sender_identities
-                (smtp_account_id, from_name, from_email, reply_to, bounce_email, dkim_policy, is_active, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, 1, NOW(), NOW())',
+                (smtp_account_id, from_name, from_email, reply_to, dkim_policy, is_active, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, 1, NOW(), NOW())',
             [
                 $smtpId,
                 trim((string)$_POST['from_name']),
                 mb_strtolower(trim((string)$_POST['from_email'])),
                 mb_strtolower(trim((string)$_POST['reply_to'])),
-                mb_strtolower(trim((string)$_POST['bounce_email'])),
                 (string)$_POST['dkim_policy'],
             ]
         );
@@ -447,7 +446,7 @@ function handle_settings(): void
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $model = trim((string)($_POST['openai_model'] ?? ''));
         if ($model !== '') {
-            SettingsService::set('openai_model', $model);
+            SettingsService::set('openai_model', OpenAiService::normalizeModel($model));
         }
         $apiKey = trim((string)($_POST['openai_api_key'] ?? ''));
         if ($apiKey !== '') {
@@ -461,7 +460,8 @@ function handle_settings(): void
     render('settings', [
         'title' => 'システム設定',
         'active' => 'settings',
-        'openaiModel' => SettingsService::get('openai_model', (string)Config::get('openai.model', 'gpt-5.6')),
+        'openaiModel' => OpenAiService::normalizeModel(SettingsService::get('openai_model', (string)Config::get('openai.model', 'gpt-5.6-terra')) ?: 'gpt-5.6-terra'),
+        'openaiModelOptions' => OpenAiService::modelOptions(),
         'openaiKeySet' => SettingsService::isSecretSet('openai_api_key', (string)Config::get('openai.api_key', '')),
     ]);
 }

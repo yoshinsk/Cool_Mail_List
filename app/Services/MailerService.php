@@ -76,6 +76,32 @@ final class MailerService
         return self::sendQueueItem($item);
     }
 
+    public static function sendSystemMail(string $to, string $subject, string $textBody, ?string $htmlBody = null): array
+    {
+        $mail = self::buildSystemMailer();
+        try {
+            $mail->setFrom((string)Config::get('system_mail.from'), (string)Config::get('system_mail.from_name'));
+            $mail->addAddress($to);
+            $mail->Subject = $subject;
+            $mail->Body = $htmlBody ?: nl2br(h($textBody));
+            $mail->AltBody = $textBody;
+            $mail->isHTML($htmlBody !== null && $htmlBody !== '');
+            $mail->send();
+
+            return [
+                'ok' => true,
+                'message_id' => $mail->getLastMessageID(),
+                'smtp_response' => $mail->ErrorInfo,
+            ];
+        } catch (MailException $e) {
+            return [
+                'ok' => false,
+                'error' => $e->getMessage(),
+                'smtp_response' => $mail->ErrorInfo,
+            ];
+        }
+    }
+
     private static function buildMailer(array $item): PHPMailer
     {
         $mail = new PHPMailer(true);
@@ -92,6 +118,28 @@ final class MailerService
         } elseif ($item['encryption'] === 'tls') {
             $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         }
+        return $mail;
+    }
+
+    private static function buildSystemMailer(): PHPMailer
+    {
+        $mail = new PHPMailer(true);
+        $mail->CharSet = 'UTF-8';
+        $mail->Encoding = 'base64';
+        $mail->isSMTP();
+        $mail->Host = (string)Config::get('system_mail.smtp_host');
+        $mail->Port = (int)Config::get('system_mail.smtp_port', 587);
+        $mail->SMTPAuth = Config::get('system_mail.smtp_user') !== '';
+        $mail->Username = (string)Config::get('system_mail.smtp_user');
+        $mail->Password = (string)Config::get('system_mail.smtp_pass');
+
+        $encryption = (string)Config::get('system_mail.smtp_encryption', 'tls');
+        if ($encryption === 'ssl') {
+            $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
+        } elseif ($encryption === 'tls') {
+            $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+        }
+
         return $mail;
     }
 

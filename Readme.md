@@ -21,15 +21,16 @@ Cool Mail List は、PHP + MariaDB で構築する独自メール配信管理シ
 - List-Unsubscribe / One-Click List-Unsubscribe ヘッダ
 - ログイン不要の購読停止
 - DSN バウンス解析の基礎
+- IMAP によるバウンスメール定期取得
+- パスワード再設定メール
+- OpenAI API キーの暗号化保存
+- AI 文面提案とテンプレート採用
 - 監査ログ
 
 ## 未実装または第2段階
 
 - Google Identity Services の ID トークン検証
-- パスワード再設定メール
-- AI 文面提案
 - DNS 診断の詳細表示
-- IMAP/POP によるバウンス定期取得
 - ダブルオプトイン
 - テンプレート差分比較
 - 複数組織対応
@@ -88,6 +89,18 @@ DB_USER=mailerdb
 DB_PASS=********
 QUEUE_BATCH_LIMIT=5
 BOUNCE_DOMAIN=mxnew.fieltrust.jp
+SYSTEM_MAIL_FROM=mailsystem@fieltrust.jp
+SYSTEM_SMTP_HOST=mxnew.fieltrust.jp
+SYSTEM_SMTP_PORT=587
+SYSTEM_SMTP_ENCRYPTION=tls
+SYSTEM_SMTP_USER=mailsystem@fieltrust.jp
+SYSTEM_SMTP_PASS=********
+BOUNCE_IMAP_HOST=mxnew.fieltrust.jp
+BOUNCE_IMAP_PORT=993
+BOUNCE_IMAP_ENCRYPTION=ssl
+BOUNCE_IMAP_USER=mailsystem@fieltrust.jp
+BOUNCE_IMAP_PASS=********
+OPENAI_MODEL=gpt-5.6
 ```
 
 DB スキーマを適用します。
@@ -108,9 +121,20 @@ Plesk 環境では Web と CLI の PHP バージョン差を避けるため、PH
 
 ```cron
 * * * * * /opt/plesk/php/8.3/bin/php /var/www/vhosts/mxnew.fieltrust.jp/httpdocs/cron/send_queue.php >/dev/null 2>&1
+*/5 * * * * /opt/plesk/php/8.3/bin/php /var/www/vhosts/mxnew.fieltrust.jp/httpdocs/cron/fetch_bounces.php >/dev/null 2>&1
 ```
 
 1回の実行で送信する件数は `.env` の `QUEUE_BATCH_LIMIT` で制御します。初期値は5件です。
+
+バウンス取得は `.env` の `BOUNCE_IMAP_*` を使い、既定では `UNSEEN` のメールだけを処理して既読化します。
+
+## AI 文面提案
+
+システム設定画面で OpenAI API キーとモデル名を保存します。API キーは `settings` テーブルに平文保存せず、`APP_KEY` を使って暗号化します。
+
+文面提案画面では、配信目的、対象者、トーン、商品/サービス概要、要点、CTA、文字数目安を入力し、生成結果を `ai_generation_requests` と `ai_generation_results` に保存します。生成結果は直接送信せず、テンプレートとして採用してからキャンペーンで使用します。
+
+Google ログインは現時点では後回しです。
 
 ## 公開ディレクトリ配置
 
@@ -130,11 +154,13 @@ Plesk 環境では Web と CLI の PHP バージョン差を避けるため、PH
 - SPF、DKIM、DMARC の整合性
 - `{{unsubscribe_url}}` を本文またはHTML本文に含めること
 - SMTP パスワードを `.env` や Git に保存しないこと
+- OpenAI API キーとメールボックスパスワードを Git に保存しないこと
 - テスト送信完了後に本番キューを作成すること
 
 ## 参照
 
 - PHPMailer: https://github.com/PHPMailer/PHPMailer
 - PHPMailer 6.10.0: https://github.com/PHPMailer/PHPMailer/releases/tag/v6.10.0
+- OpenAI Text generation: https://developers.openai.com/api/docs/guides/text
 - One-Click List-Unsubscribe, RFC 8058: https://datatracker.ietf.org/doc/html/rfc8058
 - List-Unsubscribe Header, RFC 2369: https://www.ietf.org/rfc/rfc2369.txt

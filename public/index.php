@@ -11,7 +11,7 @@ require dirname(__DIR__) . '/app/bootstrap.php';
 Session::start();
 
 $route = (string)($_GET['r'] ?? 'dashboard');
-$publicRoutes = ['login', 'register', 'unsubscribe'];
+$publicRoutes = ['login', 'register', 'forgot_password', 'reset_password', 'unsubscribe'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $route !== 'unsubscribe') {
     Csrf::requireValid();
@@ -29,11 +29,14 @@ try {
     match ($route) {
         'login' => handle_login(),
         'register' => handle_register(),
+        'forgot_password' => handle_forgot_password(),
+        'reset_password' => handle_reset_password(),
         'logout' => handle_logout(),
         'recipients' => handle_recipients(),
         'import' => handle_import(),
         'senders' => handle_senders(),
         'templates' => handle_templates(),
+        'ai' => handle_ai(),
         'test_send' => handle_test_send(),
         'campaigns' => handle_campaigns(),
         'queue_campaign' => handle_queue_campaign(),
@@ -88,6 +91,37 @@ function handle_register(): void
         }
     }
     render('auth/register', ['title' => '利用者登録', 'active' => 'register']);
+}
+
+function handle_forgot_password(): void
+{
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        PasswordResetService::request((string)($_POST['email'] ?? ''));
+        Session::flash('success', '登録済みで有効なアカウントの場合、再設定メールを送信しました。');
+        redirect_route('login');
+    }
+    render('auth/forgot_password', ['title' => 'パスワード再設定', 'active' => 'forgot_password']);
+}
+
+function handle_reset_password(): void
+{
+    $token = (string)($_GET['t'] ?? $_POST['t'] ?? '');
+    $valid = PasswordResetService::findValid($token) !== null;
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $password = (string)($_POST['password'] ?? '');
+        $confirm = (string)($_POST['password_confirm'] ?? '');
+        if ($password !== $confirm || strlen($password) < 12) {
+            Session::flash('error', 'パスワードが一致しないか、12文字未満です。');
+            redirect_route('reset_password', ['t' => $token]);
+        }
+        if (PasswordResetService::reset($token, $password)) {
+            Session::flash('success', 'パスワードを更新しました。ログインしてください。');
+            redirect_route('login');
+        }
+        Session::flash('error', '再設定URLが無効、または期限切れです。');
+        redirect_route('forgot_password');
+    }
+    render('auth/reset_password', ['title' => 'パスワード再設定', 'active' => 'reset_password', 'token' => $token, 'valid' => $valid]);
 }
 
 function handle_logout(): void
@@ -233,6 +267,32 @@ function handle_templates(): void
         'active' => 'templates',
         'templates' => Database::fetchAll('SELECT * FROM mail_templates ORDER BY id DESC LIMIT 100'),
         'senders' => Database::fetchAll('SELECT * FROM sender_identities WHERE is_active = 1 ORDER BY id DESC'),
+    ]);
+}
+
+function handle_ai(): void
+{
+    Auth::requireRole(['system_admin', 'delivery_admin', 'editor']);
+    $latestDraft = null;
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $action = (string)($_POST['action'] ?? '');
+        if ($action === 'generate') {
+            $generated = OpenAiService::generate($_POST, (int)current_user()['id']);
+            $latestDraft = $generated['draft'];
+            Session::flash('success', 'AI文面案を生成しました。');
+        } elseif ($action === 'adopt') {
+            $templateId = OpenAiService::adoptAsTemplate((int)$_POST['result_id'], (int)current_user()['id']);
+            Session::flash('success', 'AI文面案をテンプレート #' . $templateId . ' として保存しました。');
+            redirect_route('templates');
+        }
+    }
+
+    render('ai', [
+        'title' => 'AI文面提案',
+        'active' => 'ai',
+        'apiKeyReady' => SettingsService::isSecretSet('openai_api_key', (string)Config::get('openai.api_key', '')),
+        'latestDraft' => $latestDraft,
+        'results' => OpenAiService::recentResults(),
     ]);
 }
 
@@ -383,7 +443,27 @@ function handle_audit(): void
 
 function handle_settings(): void
 {
-    render('settings', ['title' => 'システム設定', 'active' => 'settings']);
+    Auth::requireRole(['system_admin']);
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $model = trim((string)($_POST['openai_model'] ?? ''));
+        if ($model !== '') {
+            SettingsService::set('openai_model', $model);
+        }
+        $apiKey = trim((string)($_POST['openai_api_key'] ?? ''));
+        if ($apiKey !== '') {
+            SettingsService::setSecret('openai_api_key', $apiKey);
+        }
+        AuditLogger::log('settings_updated', ['openai_model' => $model]);
+        Session::flash('success', 'システム設定を保存しました。');
+        redirect_route('settings');
+    }
+
+    render('settings', [
+        'title' => 'システム設定',
+        'active' => 'settings',
+        'openaiModel' => SettingsService::get('openai_model', (string)Config::get('openai.model', 'gpt-5.6')),
+        'openaiKeySet' => SettingsService::isSecretSet('openai_api_key', (string)Config::get('openai.api_key', '')),
+    ]);
 }
 
 function sanitize_html_email(string $html): string

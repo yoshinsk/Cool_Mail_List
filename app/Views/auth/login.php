@@ -17,5 +17,6 @@
         </div>
         <button class="btn btn-primary w-100" type="submit">ログイン</button>
         <a class="btn btn-outline-secondary w-100" href="<?= h(route_url('register')) ?>">利用者登録</a>
+        <a class="btn btn-link w-100" href="<?= h(route_url('forgot_password')) ?>">パスワード再設定</a>
     </form>
 </section>

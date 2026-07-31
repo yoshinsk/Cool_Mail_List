@@ -17,10 +17,14 @@ require APP_PATH . '/Core/Csrf.php';
 require APP_PATH . '/Core/Auth.php';
 require APP_PATH . '/Services/AuditLogger.php';
 require APP_PATH . '/Services/CryptoService.php';
+require APP_PATH . '/Services/SettingsService.php';
 require APP_PATH . '/Services/ImportService.php';
 require APP_PATH . '/Services/MailerService.php';
 require APP_PATH . '/Services/QueueService.php';
 require APP_PATH . '/Services/BounceParser.php';
+require APP_PATH . '/Services/BounceMailboxService.php';
+require APP_PATH . '/Services/PasswordResetService.php';
+require APP_PATH . '/Services/OpenAiService.php';
 
 spl_autoload_register(static function (string $class): void {
     $prefix = 'PHPMailer\\PHPMailer\\';

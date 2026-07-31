@@ -13,6 +13,7 @@ $nav = [
     ['import', 'インポート'],
     ['senders', '送信者/SMTP管理'],
     ['templates', 'テンプレート管理'],
+    ['ai', 'AI文面提案'],
     ['campaigns', 'メール作成/配信予約'],
     ['queue', '配信キュー'],
     ['unsubscribes', '購読停止一覧'],

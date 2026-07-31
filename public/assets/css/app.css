@@ -178,6 +178,23 @@ body {
     white-space: nowrap;
 }
 
+.section-heading {
+    font-size: 1.05rem;
+    margin: 0 0 12px;
+    font-weight: 700;
+}
+
+.draft-preview {
+    white-space: pre-wrap;
+    word-break: break-word;
+    background: #f8fafc;
+    border: 1px solid var(--cml-border);
+    border-radius: 8px;
+    padding: 14px;
+    margin: 0;
+    font-size: 0.92rem;
+}
+
 .btn {
     transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 120ms ease;
 }

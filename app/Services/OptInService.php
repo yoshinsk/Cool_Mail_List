@@ -40,7 +40,12 @@ final class OptInService
 
         $url = route_url('confirm_optin', ['t' => $token]);
         $text = "メール配信登録の確認です。\n\n以下のURLを7日以内に開くと登録が完了します。\n{$url}\n\n心当たりがない場合は、このメールを破棄してください。";
-        MailerService::sendSystemMail($email, 'Cool Mail List 配信登録確認', $text, nl2br(h($text)));
+        $sendResult = MailerService::sendSystemMail($email, 'Cool Mail List 配信登録確認', $text, nl2br(h($text)));
+        if (!$sendResult['ok']) {
+            AuditLogger::log('optin_mail_failed', ['email' => $email, 'error' => $sendResult['error'] ?? 'unknown']);
+            throw new RuntimeException('確認メールの送信に失敗しました: ' . ($sendResult['error'] ?? 'unknown'));
+        }
+
         AuditLogger::log('optin_requested', ['email' => $email]);
     }
 

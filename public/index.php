@@ -444,6 +444,14 @@ function handle_settings(): void
 {
     Auth::requireRole(['system_admin']);
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $action = (string)($_POST['action'] ?? 'openai');
+        if ($action === 'mail_settings') {
+            MailSettingsService::update($_POST);
+            AuditLogger::log('mail_settings_updated', ['bounce_base_email' => $_POST['bounce_base_email'] ?? '']);
+            Session::flash('success', 'メール設定を保存しました。');
+            redirect_route('settings');
+        }
+
         $model = trim((string)($_POST['openai_model'] ?? ''));
         if ($model !== '') {
             SettingsService::set('openai_model', OpenAiService::normalizeModel($model));
@@ -452,14 +460,16 @@ function handle_settings(): void
         if ($apiKey !== '') {
             SettingsService::setSecret('openai_api_key', $apiKey);
         }
-        AuditLogger::log('settings_updated', ['openai_model' => $model]);
-        Session::flash('success', 'システム設定を保存しました。');
+        AuditLogger::log('openai_settings_updated', ['openai_model' => $model]);
+        Session::flash('success', 'OpenAI API設定を保存しました。');
         redirect_route('settings');
     }
 
+    $mailSettings = MailSettingsService::formValues();
     render('settings', [
         'title' => 'システム設定',
         'active' => 'settings',
+        'mailSettings' => $mailSettings,
         'openaiModel' => OpenAiService::normalizeModel(SettingsService::get('openai_model', (string)Config::get('openai.model', 'gpt-5.6-terra')) ?: 'gpt-5.6-terra'),
         'openaiModelOptions' => OpenAiService::modelOptions(),
         'openaiKeySet' => SettingsService::isSecretSet('openai_api_key', (string)Config::get('openai.api_key', '')),

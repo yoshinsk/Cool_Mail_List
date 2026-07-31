@@ -18,6 +18,7 @@ require APP_PATH . '/Core/Auth.php';
 require APP_PATH . '/Services/AuditLogger.php';
 require APP_PATH . '/Services/CryptoService.php';
 require APP_PATH . '/Services/SettingsService.php';
+require APP_PATH . '/Services/MailSettingsService.php';
 require APP_PATH . '/Services/ImportService.php';
 require APP_PATH . '/Services/MailerService.php';
 require APP_PATH . '/Services/QueueService.php';

@@ -80,7 +80,7 @@ PHPMailer は公式 GitHub リリース `v6.10.0` から以下を `app/Vendor/PH
 `.env.example` を `.env` にコピーし、環境値を設定します。
 
 ```env
-APP_URL=https://mxnew.fieltrust.jp
+APP_URL=https://mail.example.com
 APP_KEY=32文字以上のランダム文字列
 DB_HOST=localhost
 DB_PORT=3306
@@ -88,18 +88,18 @@ DB_NAME=mailerdb
 DB_USER=mailerdb
 DB_PASS=********
 QUEUE_BATCH_LIMIT=5
-BOUNCE_DOMAIN=mxnew.fieltrust.jp
-BOUNCE_BASE_EMAIL=mailsystem@fieltrust.jp
-SYSTEM_MAIL_FROM=mailsystem@fieltrust.jp
-SYSTEM_SMTP_HOST=mxnew.fieltrust.jp
+BOUNCE_DOMAIN=example.com
+BOUNCE_BASE_EMAIL=bounce@example.com
+SYSTEM_MAIL_FROM=no-reply@example.com
+SYSTEM_SMTP_HOST=smtp.example.com
 SYSTEM_SMTP_PORT=587
 SYSTEM_SMTP_ENCRYPTION=tls
-SYSTEM_SMTP_USER=mailsystem@fieltrust.jp
+SYSTEM_SMTP_USER=no-reply@example.com
 SYSTEM_SMTP_PASS=********
-BOUNCE_IMAP_HOST=mxnew.fieltrust.jp
+BOUNCE_IMAP_HOST=imap.example.com
 BOUNCE_IMAP_PORT=993
 BOUNCE_IMAP_ENCRYPTION=ssl
-BOUNCE_IMAP_USER=mailsystem@fieltrust.jp
+BOUNCE_IMAP_USER=bounce@example.com
 BOUNCE_IMAP_PASS=********
 OPENAI_MODEL=gpt-5.6-terra
 ```
@@ -127,9 +127,18 @@ Plesk 環境では Web と CLI の PHP バージョン差を避けるため、PH
 
 1回の実行で送信する件数は `.env` の `QUEUE_BATCH_LIMIT` で制御します。初期値は5件です。
 
-バウンス取得は `.env` の `BOUNCE_IMAP_*` を使い、既定では `UNSEEN` のメールだけを処理して既読化します。
+バウンス取得は管理画面の「システム設定 > メール設定」で保存したIMAP設定を優先し、未設定時は `.env` の `BOUNCE_IMAP_*` を使います。既定では `UNSEEN` のメールだけを処理して既読化します。
 
-Return-Path は送信者ごとに分けず、常に `BOUNCE_BASE_EMAIL` を基準にします。現在の標準は `mailsystem+rp_xxxxx@fieltrust.jp` です。Plesk/Postfix 側で plus addressing が有効な環境では、これらは `mailsystem@fieltrust.jp` の同一メールボックスに配送されます。
+Return-Path は送信者ごとに分けず、常に「固定バウンス基準アドレス」を基準にします。例として `bounce+rp_xxxxx@example.com` の形式で生成します。Plesk/Postfix 側で plus addressing が有効な環境では、これらは `bounce@example.com` の同一メールボックスに配送されます。
+
+## メール設定
+
+管理画面の「システム設定 > メール設定」で以下を保存できます。DB保存値がある場合は `.env` より優先されます。SMTP/IMAPパスワードは `settings` テーブルに平文保存せず、`APP_KEY` を使って暗号化します。
+
+- 固定バウンス基準アドレス
+- パスワード再設定などに使うシステムメールFrom
+- システムメール送信用SMTPホスト、ポート、暗号化、ユーザー、パスワード
+- バウンス取得用IMAPホスト、ポート、暗号化、ユーザー、パスワード、メールボックス、検索条件
 
 ## AI 文面提案
 

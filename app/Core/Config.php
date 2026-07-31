@@ -26,7 +26,7 @@ final class Config
             'db.pass' => $env['DB_PASS'] ?? '',
             'queue.batch_limit' => max(1, (int)($env['QUEUE_BATCH_LIMIT'] ?? 5)),
             'mail.bounce_domain' => $env['BOUNCE_DOMAIN'] ?? '',
-            'mail.bounce_base_email' => $env['BOUNCE_BASE_EMAIL'] ?? 'mailsystem@fieltrust.jp',
+            'mail.bounce_base_email' => $env['BOUNCE_BASE_EMAIL'] ?? '',
             'mail.default_from_name' => $env['DEFAULT_FROM_NAME'] ?? 'Cool Mail List',
             'system_mail.from' => $env['SYSTEM_MAIL_FROM'] ?? '',
             'system_mail.from_name' => $env['SYSTEM_MAIL_FROM_NAME'] ?? 'Cool Mail List',

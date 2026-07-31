@@ -14,9 +14,10 @@ final class BounceMailboxService
             throw new RuntimeException('PHP IMAP拡張が有効ではありません。');
         }
 
-        $mailbox = self::mailboxString();
-        $user = (string)Config::get('bounce_imap.user', '');
-        $pass = (string)Config::get('bounce_imap.pass', '');
+        $config = MailSettingsService::bounceImap();
+        $mailbox = self::mailboxString($config);
+        $user = $config['user'];
+        $pass = $config['pass'];
         if ($mailbox === '' || $user === '' || $pass === '') {
             throw new RuntimeException('バウンス取得用IMAP設定が未設定です。');
         }
@@ -32,7 +33,7 @@ final class BounceMailboxService
                 throw new RuntimeException('IMAP接続に失敗しました: ' . (imap_last_error() ?: 'unknown'));
             }
 
-            $numbers = imap_search($imap, (string)Config::get('bounce_imap.search', 'UNSEEN')) ?: [];
+            $numbers = imap_search($imap, $config['search']) ?: [];
             $processed = 0;
             $failed = 0;
             foreach ($numbers as $number) {
@@ -40,7 +41,7 @@ final class BounceMailboxService
                 $body = imap_body($imap, (int)$number, FT_PEEK) ?: '';
                 try {
                     BounceParser::processRaw($header . "\n" . $body);
-                    if (Config::get('bounce_imap.mark_seen', true)) {
+                    if ($config['mark_seen']) {
                         imap_setflag_full($imap, (string)$number, '\\Seen');
                     }
                     $processed++;
@@ -58,12 +59,12 @@ final class BounceMailboxService
         }
     }
 
-    private static function mailboxString(): string
+    private static function mailboxString(array $config): string
     {
-        $host = (string)Config::get('bounce_imap.host', '');
-        $port = (int)Config::get('bounce_imap.port', 993);
-        $encryption = (string)Config::get('bounce_imap.encryption', 'ssl');
-        $folder = (string)Config::get('bounce_imap.mailbox', 'INBOX');
+        $host = $config['host'];
+        $port = $config['port'];
+        $encryption = $config['encryption'];
+        $folder = $config['mailbox'];
         if ($host === '') {
             return '';
         }

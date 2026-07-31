@@ -12,20 +12,107 @@
                 <tr><th>APP_URL</th><td><?= h((string)Config::get('app.url')) ?></td></tr>
                 <tr><th>QUEUE_BATCH_LIMIT</th><td><?= h((string)Config::get('queue.batch_limit')) ?></td></tr>
                 <tr><th>BOUNCE_DOMAIN</th><td><?= h((string)Config::get('mail.bounce_domain')) ?></td></tr>
-                <tr><th>BOUNCE_BASE_EMAIL</th><td><?= h((string)Config::get('mail.bounce_base_email')) ?></td></tr>
+                <tr><th>固定バウンス基準アドレス</th><td><?= h($mailSettings['bounce_base_email']) ?></td></tr>
                 <tr><th>Google Client ID</th><td>後回し</td></tr>
                 <tr><th>OpenAI API Key</th><td><?= !empty($openaiKeySet) ? '設定済み' : '未設定' ?></td></tr>
-                <tr><th>System SMTP</th><td><?= h((string)Config::get('system_mail.smtp_host') . ':' . (string)Config::get('system_mail.smtp_port')) ?></td></tr>
-                <tr><th>Bounce IMAP</th><td><?= h((string)Config::get('bounce_imap.host') . ':' . (string)Config::get('bounce_imap.port')) ?></td></tr>
+                <tr><th>システムSMTP</th><td><?= h($mailSettings['system_smtp_host'] . ':' . $mailSettings['system_smtp_port']) ?></td></tr>
+                <tr><th>バウンスIMAP</th><td><?= h($mailSettings['bounce_imap_host'] . ':' . $mailSettings['bounce_imap_port']) ?></td></tr>
             </tbody>
         </table>
     </div>
 </section>
 
 <section class="panel">
+    <div class="panel-title">メール設定</div>
+    <form method="post" class="stack-form">
+        <?= Csrf::field() ?>
+        <input type="hidden" name="action" value="mail_settings">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label" for="bounce_base_email">固定バウンス基準アドレス</label>
+                <input class="form-control" id="bounce_base_email" name="bounce_base_email" type="email" value="<?= h($mailSettings['bounce_base_email']) ?>" required>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label" for="system_mail_from">システムメールFrom</label>
+                <input class="form-control" id="system_mail_from" name="system_mail_from" type="email" value="<?= h($mailSettings['system_mail_from']) ?>" required>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label" for="system_mail_from_name">システムメール表示名</label>
+                <input class="form-control" id="system_mail_from_name" name="system_mail_from_name" value="<?= h($mailSettings['system_mail_from_name']) ?>" required>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label" for="system_smtp_host">SMTPホスト</label>
+                <input class="form-control" id="system_smtp_host" name="system_smtp_host" value="<?= h($mailSettings['system_smtp_host']) ?>" required>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" for="system_smtp_port">SMTPポート</label>
+                <input class="form-control" id="system_smtp_port" name="system_smtp_port" type="number" min="1" value="<?= h($mailSettings['system_smtp_port']) ?>" required>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" for="system_smtp_encryption">SMTP暗号化</label>
+                <select class="form-select" id="system_smtp_encryption" name="system_smtp_encryption">
+                    <?php foreach (['tls' => 'TLS', 'ssl' => 'SSL', '' => 'なし'] as $value => $label): ?>
+                        <option value="<?= h($value) ?>" <?= $mailSettings['system_smtp_encryption'] === $value ? 'selected' : '' ?>><?= h($label) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" for="system_smtp_user">SMTPユーザー</label>
+                <input class="form-control" id="system_smtp_user" name="system_smtp_user" value="<?= h($mailSettings['system_smtp_user']) ?>">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" for="system_smtp_pass">SMTPパスワード</label>
+                <input class="form-control" id="system_smtp_pass" name="system_smtp_pass" type="password" autocomplete="off" placeholder="<?= $mailSettings['system_smtp_pass_set'] ? '設定済み。変更時のみ入力' : '未設定' ?>">
+            </div>
+        </div>
+
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label" for="bounce_imap_host">IMAPホスト</label>
+                <input class="form-control" id="bounce_imap_host" name="bounce_imap_host" value="<?= h($mailSettings['bounce_imap_host']) ?>" required>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" for="bounce_imap_port">IMAPポート</label>
+                <input class="form-control" id="bounce_imap_port" name="bounce_imap_port" type="number" min="1" value="<?= h($mailSettings['bounce_imap_port']) ?>" required>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" for="bounce_imap_encryption">IMAP暗号化</label>
+                <select class="form-select" id="bounce_imap_encryption" name="bounce_imap_encryption">
+                    <?php foreach (['ssl' => 'SSL', 'tls' => 'TLS', '' => 'なし'] as $value => $label): ?>
+                        <option value="<?= h($value) ?>" <?= $mailSettings['bounce_imap_encryption'] === $value ? 'selected' : '' ?>><?= h($label) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label" for="bounce_imap_user">IMAPユーザー</label>
+                <input class="form-control" id="bounce_imap_user" name="bounce_imap_user" value="<?= h($mailSettings['bounce_imap_user']) ?>" required>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label" for="bounce_imap_pass">IMAPパスワード</label>
+                <input class="form-control" id="bounce_imap_pass" name="bounce_imap_pass" type="password" autocomplete="off" placeholder="<?= $mailSettings['bounce_imap_pass_set'] ? '設定済み。変更時のみ入力' : '未設定' ?>">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label" for="bounce_imap_mailbox">メールボックス</label>
+                <input class="form-control" id="bounce_imap_mailbox" name="bounce_imap_mailbox" value="<?= h($mailSettings['bounce_imap_mailbox']) ?>" required>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label" for="bounce_imap_search">検索条件</label>
+                <input class="form-control" id="bounce_imap_search" name="bounce_imap_search" value="<?= h($mailSettings['bounce_imap_search']) ?>" required>
+            </div>
+            <div class="col-md-12 form-check ms-2">
+                <input class="form-check-input" id="bounce_imap_mark_seen" name="bounce_imap_mark_seen" type="checkbox" value="1" <?= $mailSettings['bounce_imap_mark_seen'] ? 'checked' : '' ?>>
+                <label class="form-check-label" for="bounce_imap_mark_seen">取得後に既読化する</label>
+            </div>
+        </div>
+        <button class="btn btn-primary" type="submit">メール設定を保存</button>
+    </form>
+</section>
+
+<section class="panel">
     <div class="panel-title">OpenAI API設定</div>
     <form method="post" class="stack-form">
         <?= Csrf::field() ?>
+        <input type="hidden" name="action" value="openai">
         <div class="row g-3">
             <div class="col-md-6">
                 <label class="form-label" for="openai_model">モデル</label>

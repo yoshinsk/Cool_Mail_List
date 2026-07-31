@@ -79,8 +79,9 @@ final class MailerService
     public static function sendSystemMail(string $to, string $subject, string $textBody, ?string $htmlBody = null): array
     {
         $mail = self::buildSystemMailer();
+        $smtp = MailSettingsService::systemSmtp();
         try {
-            $mail->setFrom((string)Config::get('system_mail.from'), (string)Config::get('system_mail.from_name'));
+            $mail->setFrom($smtp['from'], $smtp['from_name']);
             $mail->addAddress($to);
             $mail->Subject = $subject;
             $mail->Body = $htmlBody ?: nl2br(h($textBody));
@@ -123,20 +124,20 @@ final class MailerService
 
     private static function buildSystemMailer(): PHPMailer
     {
+        $smtp = MailSettingsService::systemSmtp();
         $mail = new PHPMailer(true);
         $mail->CharSet = 'UTF-8';
         $mail->Encoding = 'base64';
         $mail->isSMTP();
-        $mail->Host = (string)Config::get('system_mail.smtp_host');
-        $mail->Port = (int)Config::get('system_mail.smtp_port', 587);
-        $mail->SMTPAuth = Config::get('system_mail.smtp_user') !== '';
-        $mail->Username = (string)Config::get('system_mail.smtp_user');
-        $mail->Password = (string)Config::get('system_mail.smtp_pass');
+        $mail->Host = $smtp['host'];
+        $mail->Port = $smtp['port'];
+        $mail->SMTPAuth = $smtp['user'] !== '';
+        $mail->Username = $smtp['user'];
+        $mail->Password = $smtp['pass'];
 
-        $encryption = (string)Config::get('system_mail.smtp_encryption', 'tls');
-        if ($encryption === 'ssl') {
+        if ($smtp['encryption'] === 'ssl') {
             $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
-        } elseif ($encryption === 'tls') {
+        } elseif ($smtp['encryption'] === 'tls') {
             $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         }
 
@@ -155,9 +156,9 @@ final class MailerService
 
     private static function returnPath(array $item): string
     {
-        $baseEmail = (string)Config::get('mail.bounce_base_email', 'mailsystem@fieltrust.jp');
+        $baseEmail = MailSettingsService::bounceBaseEmail();
         if (!str_contains($baseEmail, '@')) {
-            throw new RuntimeException('BOUNCE_BASE_EMAIL が不正です。');
+            throw new RuntimeException('固定バウンス基準アドレスが未設定、または不正です。');
         }
         return self::plusAddress($baseEmail, $item['return_path_token']);
     }

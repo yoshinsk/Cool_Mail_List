@@ -223,6 +223,17 @@ https://mail.example.com/index.php?r=subscribe&org=default
 - OpenAI API キーとメールボックスパスワードを Git に保存しないこと
 - テスト送信完了後に本番キューを作成すること
 
+## ライセンス
+
+このリポジトリは独自ライセンスです。個人かつ非商用での利用は連絡不要です。
+
+商用利用する場合は、事前に NSK,inc へ連絡してください。
+
+- NSK,inc
+- https://nsksys.com/
+
+著作権は NSK,inc が保持し、放棄しません。詳細は [LICENSE](LICENSE) を確認してください。
+
 ## 参照
 
 - PHPMailer: https://github.com/PHPMailer/PHPMailer

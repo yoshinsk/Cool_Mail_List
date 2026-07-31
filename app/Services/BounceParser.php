@@ -14,30 +14,31 @@ final class BounceParser
         $statusCode = self::extractStatus($raw);
         $action = self::extractHeaderValue($raw, 'Action') ?: 'unknown';
         $diagnostic = self::extractHeaderValue($raw, 'Diagnostic-Code') ?: '';
+        $queue = $token ? self::findQueue($token) : null;
 
         Database::execute(
-            'INSERT INTO bounce_messages (return_path_token, status_code, action, diagnostic, raw_message, created_at)
-             VALUES (?, ?, ?, ?, ?, NOW())',
-            [$token, $statusCode, $action, $diagnostic, $raw]
+            'INSERT INTO bounce_messages (organization_id, return_path_token, status_code, action, diagnostic, raw_message, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, NOW())',
+            [$queue['organization_id'] ?? null, $token, $statusCode, $action, $diagnostic, $raw]
         );
 
-        if ($token) {
-            self::applyBounce($token, $statusCode, $diagnostic);
+        if ($queue) {
+            self::applyBounce($queue, $statusCode, $diagnostic);
         }
 
         return ['token' => $token, 'status_code' => $statusCode, 'action' => $action];
     }
 
-    private static function applyBounce(string $token, ?string $statusCode, string $diagnostic): void
+    private static function findQueue(string $token): ?array
     {
-        $queue = Database::fetch(
-            'SELECT mq.id, mq.recipient_id FROM mail_queue mq WHERE mq.return_path_token = ? LIMIT 1',
+        return Database::fetch(
+            'SELECT mq.id, mq.recipient_id, mq.organization_id FROM mail_queue mq WHERE mq.return_path_token = ? LIMIT 1',
             [$token]
         );
-        if (!$queue) {
-            return;
-        }
+    }
 
+    private static function applyBounce(array $queue, ?string $statusCode, string $diagnostic): void
+    {
         $hard = $statusCode !== null && str_starts_with($statusCode, '5.');
         Database::execute(
             'INSERT INTO bounce_events (mail_queue_id, recipient_id, status_code, diagnostic, is_hard, created_at)

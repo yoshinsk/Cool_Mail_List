@@ -83,7 +83,8 @@ final class OpenAiService
 
         $model = self::normalizeModel(SettingsService::get('openai_model', (string)Config::get('openai.model', 'gpt-5.6-terra')) ?: 'gpt-5.6-terra');
         $prompt = self::buildPrompt($input);
-        $requestId = self::saveRequest($userId, $model, $prompt);
+        $organizationId = OrganizationService::currentId();
+        $requestId = self::saveRequest($organizationId, $userId, $model, $prompt);
         $payload = [
             'model' => $model,
             'instructions' => self::instructions(),
@@ -105,7 +106,14 @@ final class OpenAiService
 
     public static function adoptAsTemplate(int $resultId, int $userId): int
     {
-        $row = Database::fetch('SELECT * FROM ai_generation_results WHERE id = ? LIMIT 1', [$resultId]);
+        $row = Database::fetch(
+            'SELECT r.*, q.organization_id
+             FROM ai_generation_results r
+             JOIN ai_generation_requests q ON q.id = r.request_id
+             WHERE r.id = ? AND q.organization_id = ?
+             LIMIT 1',
+            [$resultId, OrganizationService::currentId()]
+        );
         if (!$row) {
             throw new RuntimeException('AI生成結果が見つかりません。');
         }
@@ -116,9 +124,10 @@ final class OpenAiService
         }
 
         Database::execute(
-            'INSERT INTO mail_templates (name, subject, body_text, body_html, created_by, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, NOW(), NOW())',
+            'INSERT INTO mail_templates (organization_id, name, subject, body_text, body_html, created_by, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())',
             [
+                (int)$row['organization_id'],
                 'AI下書き ' . date('Y-m-d H:i'),
                 (string)($draft['subject'] ?? ''),
                 (string)($draft['body_text'] ?? ''),
@@ -139,15 +148,17 @@ final class OpenAiService
              FROM ai_generation_results r
              JOIN ai_generation_requests q ON q.id = r.request_id
              LEFT JOIN users u ON u.id = q.user_id
-             ORDER BY r.id DESC LIMIT 20'
+             WHERE q.organization_id = ?
+             ORDER BY r.id DESC LIMIT 20',
+            [OrganizationService::currentId()]
         );
     }
 
-    private static function saveRequest(int $userId, string $model, string $prompt): int
+    private static function saveRequest(int $organizationId, int $userId, string $model, string $prompt): int
     {
         Database::execute(
-            'INSERT INTO ai_generation_requests (user_id, prompt, model, created_at) VALUES (?, ?, ?, NOW())',
-            [$userId, $prompt, $model]
+            'INSERT INTO ai_generation_requests (organization_id, user_id, prompt, model, created_at) VALUES (?, ?, ?, ?, NOW())',
+            [$organizationId, $userId, $prompt, $model]
         );
         return Database::lastInsertId();
     }

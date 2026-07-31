@@ -4,8 +4,22 @@
 SET NAMES utf8mb4;
 SET time_zone = '+09:00';
 
+CREATE TABLE IF NOT EXISTS organizations (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    slug VARCHAR(128) NOT NULL UNIQUE,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    INDEX idx_organizations_active (is_active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT IGNORE INTO organizations (id, name, slug, is_active, created_at, updated_at)
+VALUES (1, 'Default', 'default', 1, NOW(), NOW());
+
 CREATE TABLE IF NOT EXISTS users (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    organization_id BIGINT UNSIGNED NOT NULL DEFAULT 1,
     email VARCHAR(255) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
     role VARCHAR(32) NOT NULL DEFAULT 'viewer',
@@ -18,8 +32,10 @@ CREATE TABLE IF NOT EXISTS users (
     locked_until DATETIME NULL,
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL,
+    INDEX idx_users_org (organization_id),
     INDEX idx_users_status (status),
-    INDEX idx_users_role (role)
+    INDEX idx_users_role (role),
+    FOREIGN KEY (organization_id) REFERENCES organizations(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS user_google_accounts (
@@ -89,7 +105,8 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 
 CREATE TABLE IF NOT EXISTS recipients (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    email VARCHAR(255) NOT NULL UNIQUE,
+    organization_id BIGINT UNSIGNED NOT NULL DEFAULT 1,
+    email VARCHAR(255) NOT NULL,
     name VARCHAR(255) NULL,
     company VARCHAR(255) NULL,
     tags VARCHAR(255) NULL,
@@ -99,8 +116,11 @@ CREATE TABLE IF NOT EXISTS recipients (
     bounce_count INT UNSIGNED NOT NULL DEFAULT 0,
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL,
+    UNIQUE KEY uniq_recipients_org_email (organization_id, email),
+    INDEX idx_recipients_org (organization_id),
     INDEX idx_recipients_status (status),
-    INDEX idx_recipients_email (email)
+    INDEX idx_recipients_email (email),
+    FOREIGN KEY (organization_id) REFERENCES organizations(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS recipient_custom_fields (
@@ -155,6 +175,7 @@ CREATE TABLE IF NOT EXISTS optin_tokens (
 
 CREATE TABLE IF NOT EXISTS smtp_accounts (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    organization_id BIGINT UNSIGNED NOT NULL DEFAULT 1,
     name VARCHAR(255) NOT NULL,
     smtp_host VARCHAR(255) NOT NULL,
     smtp_port INT UNSIGNED NOT NULL DEFAULT 587,
@@ -166,21 +187,27 @@ CREATE TABLE IF NOT EXISTS smtp_accounts (
     is_active TINYINT(1) NOT NULL DEFAULT 1,
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL,
-    INDEX idx_smtp_active (is_active)
+    INDEX idx_smtp_org (organization_id),
+    INDEX idx_smtp_active (is_active),
+    FOREIGN KEY (organization_id) REFERENCES organizations(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS sender_identities (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    organization_id BIGINT UNSIGNED NOT NULL DEFAULT 1,
     smtp_account_id BIGINT UNSIGNED NOT NULL,
     from_name VARCHAR(255) NOT NULL,
-    from_email VARCHAR(255) NOT NULL UNIQUE,
+    from_email VARCHAR(255) NOT NULL,
     reply_to VARCHAR(255) NULL,
     bounce_email VARCHAR(255) NULL,
     dkim_policy VARCHAR(32) NOT NULL DEFAULT 'recommended',
     is_active TINYINT(1) NOT NULL DEFAULT 1,
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL,
+    UNIQUE KEY uniq_senders_org_email (organization_id, from_email),
+    INDEX idx_sender_org (organization_id),
     FOREIGN KEY (smtp_account_id) REFERENCES smtp_accounts(id),
+    FOREIGN KEY (organization_id) REFERENCES organizations(id),
     INDEX idx_sender_active (is_active)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -192,6 +219,7 @@ CREATE TABLE IF NOT EXISTS sender_domain_checks (
     dmarc_status VARCHAR(32) NULL,
     mx_status VARCHAR(32) NULL,
     ptr_status VARCHAR(32) NULL,
+    details_json JSON NULL,
     checked_at DATETIME NOT NULL,
     FOREIGN KEY (sender_identity_id) REFERENCES sender_identities(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -208,6 +236,7 @@ CREATE TABLE IF NOT EXISTS dkim_settings (
 
 CREATE TABLE IF NOT EXISTS mail_templates (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    organization_id BIGINT UNSIGNED NOT NULL DEFAULT 1,
     name VARCHAR(255) NOT NULL,
     subject VARCHAR(255) NOT NULL,
     body_text MEDIUMTEXT NOT NULL,
@@ -215,6 +244,8 @@ CREATE TABLE IF NOT EXISTS mail_templates (
     created_by BIGINT UNSIGNED NULL,
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL,
+    INDEX idx_templates_org (organization_id),
+    FOREIGN KEY (organization_id) REFERENCES organizations(id),
     FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -232,10 +263,13 @@ CREATE TABLE IF NOT EXISTS mail_template_versions (
 
 CREATE TABLE IF NOT EXISTS ai_generation_requests (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    organization_id BIGINT UNSIGNED NOT NULL DEFAULT 1,
     user_id BIGINT UNSIGNED NULL,
     prompt MEDIUMTEXT NOT NULL,
     model VARCHAR(128) NULL,
     created_at DATETIME NOT NULL,
+    INDEX idx_ai_requests_org (organization_id),
+    FOREIGN KEY (organization_id) REFERENCES organizations(id),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -250,6 +284,7 @@ CREATE TABLE IF NOT EXISTS ai_generation_results (
 
 CREATE TABLE IF NOT EXISTS campaigns (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    organization_id BIGINT UNSIGNED NOT NULL DEFAULT 1,
     name VARCHAR(255) NOT NULL,
     sender_identity_id BIGINT UNSIGNED NOT NULL,
     template_id BIGINT UNSIGNED NOT NULL,
@@ -259,6 +294,8 @@ CREATE TABLE IF NOT EXISTS campaigns (
     created_by BIGINT UNSIGNED NULL,
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL,
+    INDEX idx_campaign_org (organization_id),
+    FOREIGN KEY (organization_id) REFERENCES organizations(id),
     FOREIGN KEY (sender_identity_id) REFERENCES sender_identities(id),
     FOREIGN KEY (template_id) REFERENCES mail_templates(id),
     FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
@@ -289,6 +326,7 @@ CREATE TABLE IF NOT EXISTS campaign_approvals (
 
 CREATE TABLE IF NOT EXISTS mail_queue (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    organization_id BIGINT UNSIGNED NOT NULL DEFAULT 1,
     campaign_id BIGINT UNSIGNED NOT NULL,
     recipient_id BIGINT UNSIGNED NOT NULL,
     sender_identity_id BIGINT UNSIGNED NOT NULL,
@@ -306,7 +344,9 @@ CREATE TABLE IF NOT EXISTS mail_queue (
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL,
     UNIQUE KEY uniq_campaign_recipient (campaign_id, recipient_id),
+    INDEX idx_queue_org (organization_id),
     INDEX idx_queue_status_schedule (status, scheduled_at),
+    FOREIGN KEY (organization_id) REFERENCES organizations(id),
     FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE,
     FOREIGN KEY (recipient_id) REFERENCES recipients(id),
     FOREIGN KEY (sender_identity_id) REFERENCES sender_identities(id),
@@ -326,13 +366,16 @@ CREATE TABLE IF NOT EXISTS mail_send_logs (
 
 CREATE TABLE IF NOT EXISTS bounce_messages (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    organization_id BIGINT UNSIGNED NULL,
     return_path_token VARCHAR(96) NULL,
     status_code VARCHAR(32) NULL,
     action VARCHAR(64) NULL,
     diagnostic TEXT NULL,
     raw_message MEDIUMTEXT NOT NULL,
     created_at DATETIME NOT NULL,
-    INDEX idx_bounce_token (return_path_token)
+    INDEX idx_bounce_org (organization_id),
+    INDEX idx_bounce_token (return_path_token),
+    FOREIGN KEY (organization_id) REFERENCES organizations(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS bounce_events (

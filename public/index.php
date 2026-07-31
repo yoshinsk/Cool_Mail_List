@@ -11,7 +11,7 @@ require dirname(__DIR__) . '/app/bootstrap.php';
 Session::start();
 
 $route = (string)($_GET['r'] ?? 'dashboard');
-$publicRoutes = ['login', 'register', 'forgot_password', 'reset_password', 'unsubscribe'];
+$publicRoutes = ['login', 'google_callback', 'register', 'forgot_password', 'reset_password', 'unsubscribe', 'subscribe', 'confirm_optin'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $route !== 'unsubscribe') {
     Csrf::requireValid();
@@ -28,6 +28,7 @@ if (Auth::check() && in_array($route, ['login', 'register'], true)) {
 try {
     match ($route) {
         'login' => handle_login(),
+        'google_callback' => handle_google_callback(),
         'register' => handle_register(),
         'forgot_password' => handle_forgot_password(),
         'reset_password' => handle_reset_password(),
@@ -35,7 +36,10 @@ try {
         'recipients' => handle_recipients(),
         'import' => handle_import(),
         'senders' => handle_senders(),
+        'dns_checks' => handle_dns_checks(),
         'templates' => handle_templates(),
+        'template_edit' => handle_template_edit(),
+        'template_compare' => handle_template_compare(),
         'ai' => handle_ai(),
         'test_send' => handle_test_send(),
         'campaigns' => handle_campaigns(),
@@ -43,7 +47,10 @@ try {
         'queue' => handle_queue(),
         'unsubscribes' => handle_unsubscribes(),
         'unsubscribe' => handle_unsubscribe(),
+        'subscribe' => handle_subscribe(),
+        'confirm_optin' => handle_confirm_optin(),
         'bounces' => handle_bounces(),
+        'organizations' => handle_organizations(),
         'users' => handle_users(),
         'audit' => handle_audit(),
         'settings' => handle_settings(),
@@ -67,7 +74,40 @@ function handle_login(): void
         }
         Session::flash('error', 'ログインできません。メールアドレス、パスワード、承認状態を確認してください。');
     }
-    render('auth/login', ['title' => 'ログイン', 'active' => 'login']);
+
+    render('auth/login', [
+        'title' => 'ログイン',
+        'active' => 'login',
+        'googleSettings' => GoogleAuthService::settings(),
+    ]);
+}
+
+function handle_google_callback(): void
+{
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        redirect_route('login');
+    }
+
+    $credential = (string)($_POST['credential'] ?? '');
+    if ($credential === '') {
+        Session::flash('error', 'Googleログイン情報を受け取れませんでした。');
+        redirect_route('login');
+    }
+
+    try {
+        $result = GoogleAuthService::handleCredential($credential);
+    } catch (Throwable $e) {
+        AuditLogger::log('google_login_failed', ['reason' => $e->getMessage()]);
+        Session::flash('error', 'Googleログインに失敗しました: ' . $e->getMessage());
+        redirect_route('login');
+    }
+
+    if (!empty($result['ok'])) {
+        redirect_route('dashboard');
+    }
+
+    Session::flash('success', (string)$result['email'] . ' を登録しました。管理者承認後にGoogleログインできます。');
+    redirect_route('login');
 }
 
 function handle_register(): void
@@ -81,9 +121,9 @@ function handle_register(): void
             Session::flash('error', 'このメールアドレスは登録済みです。');
         } else {
             Database::execute(
-                'INSERT INTO users (email, password_hash, role, status, email_verified_at, created_at, updated_at)
-                 VALUES (?, ?, "viewer", "pending_approval", NOW(), NOW(), NOW())',
-                [$email, password_hash($password, PASSWORD_DEFAULT)]
+                'INSERT INTO users (organization_id, email, password_hash, role, status, email_verified_at, created_at, updated_at)
+                 VALUES (?, ?, ?, "viewer", "pending_approval", NOW(), NOW(), NOW())',
+                [OrganizationService::defaultId(), $email, password_hash($password, PASSWORD_DEFAULT)]
             );
             AuditLogger::log('user_registered', ['email' => $email]);
             Session::flash('success', '登録しました。管理者承認後にログインできます。');
@@ -132,13 +172,14 @@ function handle_logout(): void
 
 function handle_dashboard(): void
 {
+    $orgId = OrganizationService::currentId();
     $stats = [
-        'recipients' => Database::fetch('SELECT COUNT(*) AS c FROM recipients')['c'] ?? 0,
-        'active' => Database::fetch('SELECT COUNT(*) AS c FROM recipients WHERE status = "active"')['c'] ?? 0,
-        'queued' => Database::fetch('SELECT COUNT(*) AS c FROM mail_queue WHERE status IN ("pending", "temporary_failed")')['c'] ?? 0,
-        'sent' => Database::fetch('SELECT COUNT(*) AS c FROM mail_queue WHERE status = "sent"')['c'] ?? 0,
-        'bounced' => Database::fetch('SELECT COUNT(*) AS c FROM recipients WHERE status IN ("hard_bounced", "soft_bounced")')['c'] ?? 0,
-        'unsubscribed' => Database::fetch('SELECT COUNT(*) AS c FROM recipients WHERE status = "unsubscribed"')['c'] ?? 0,
+        'recipients' => Database::fetch('SELECT COUNT(*) AS c FROM recipients WHERE organization_id = ?', [$orgId])['c'] ?? 0,
+        'active' => Database::fetch('SELECT COUNT(*) AS c FROM recipients WHERE organization_id = ? AND status = "active"', [$orgId])['c'] ?? 0,
+        'queued' => Database::fetch('SELECT COUNT(*) AS c FROM mail_queue WHERE organization_id = ? AND status IN ("pending", "temporary_failed")', [$orgId])['c'] ?? 0,
+        'sent' => Database::fetch('SELECT COUNT(*) AS c FROM mail_queue WHERE organization_id = ? AND status = "sent"', [$orgId])['c'] ?? 0,
+        'bounced' => Database::fetch('SELECT COUNT(*) AS c FROM recipients WHERE organization_id = ? AND status IN ("hard_bounced", "soft_bounced")', [$orgId])['c'] ?? 0,
+        'unsubscribed' => Database::fetch('SELECT COUNT(*) AS c FROM recipients WHERE organization_id = ? AND status = "unsubscribed"', [$orgId])['c'] ?? 0,
     ];
     $recentLogs = Database::fetchAll('SELECT * FROM audit_logs ORDER BY id DESC LIMIT 8');
     render('dashboard', ['title' => 'ダッシュボード', 'active' => 'dashboard', 'stats' => $stats, 'recentLogs' => $recentLogs]);
@@ -146,6 +187,7 @@ function handle_dashboard(): void
 
 function handle_recipients(): void
 {
+    $orgId = OrganizationService::currentId();
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         Auth::requireRole(['system_admin', 'delivery_admin']);
         $email = mb_strtolower(trim((string)($_POST['email'] ?? '')));
@@ -153,19 +195,19 @@ function handle_recipients(): void
             Session::flash('error', 'メールアドレス形式が不正です。');
         } else {
             Database::execute(
-                'INSERT INTO recipients (email, name, company, tags, source, status, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, "manual", ?, NOW(), NOW())
+                'INSERT INTO recipients (organization_id, email, name, company, tags, source, status, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, "manual", ?, NOW(), NOW())
                  ON DUPLICATE KEY UPDATE name = VALUES(name), company = VALUES(company), tags = VALUES(tags), status = VALUES(status), updated_at = NOW()',
-                [$email, trim((string)$_POST['name']), trim((string)$_POST['company']), trim((string)$_POST['tags']), (string)$_POST['status']]
+                [$orgId, $email, trim((string)$_POST['name']), trim((string)$_POST['company']), trim((string)$_POST['tags']), (string)$_POST['status']]
             );
-            AuditLogger::log('recipient_saved', ['email' => $email]);
+            AuditLogger::log('recipient_saved', ['email' => $email, 'organization_id' => $orgId]);
             Session::flash('success', '宛先を保存しました。');
             redirect_route('recipients');
         }
     }
 
-    $where = [];
-    $params = [];
+    $where = ['organization_id = ?'];
+    $params = [$orgId];
     if (!empty($_GET['status'])) {
         $where[] = 'status = ?';
         $params[] = (string)$_GET['status'];
@@ -175,7 +217,7 @@ function handle_recipients(): void
         $q = '%' . (string)$_GET['q'] . '%';
         array_push($params, $q, $q, $q, $q);
     }
-    $sql = 'SELECT * FROM recipients' . ($where ? ' WHERE ' . implode(' AND ', $where) : '') . ' ORDER BY id DESC LIMIT 200';
+    $sql = 'SELECT * FROM recipients WHERE ' . implode(' AND ', $where) . ' ORDER BY id DESC LIMIT 200';
     render('recipients', [
         'title' => '宛先管理',
         'active' => 'recipients',
@@ -197,13 +239,15 @@ function handle_import(): void
 function handle_senders(): void
 {
     Auth::requireRole(['system_admin', 'delivery_admin']);
+    $orgId = OrganizationService::currentId();
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $passwordCipher = $_POST['smtp_password'] !== '' ? CryptoService::encrypt((string)$_POST['smtp_password']) : null;
         Database::execute(
             'INSERT INTO smtp_accounts
-                (name, smtp_host, smtp_port, encryption, auth_username, auth_password_ciphertext, per_minute_limit, daily_limit, is_active, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, NOW(), NOW())',
+                (organization_id, name, smtp_host, smtp_port, encryption, auth_username, auth_password_ciphertext, per_minute_limit, daily_limit, is_active, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW(), NOW())',
             [
+                $orgId,
                 trim((string)$_POST['account_name']),
                 trim((string)$_POST['smtp_host']),
                 (int)$_POST['smtp_port'],
@@ -217,9 +261,10 @@ function handle_senders(): void
         $smtpId = Database::lastInsertId();
         Database::execute(
             'INSERT INTO sender_identities
-                (smtp_account_id, from_name, from_email, reply_to, dkim_policy, is_active, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, 1, NOW(), NOW())',
+                (organization_id, smtp_account_id, from_name, from_email, reply_to, dkim_policy, is_active, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, 1, NOW(), NOW())',
             [
+                $orgId,
                 $smtpId,
                 trim((string)$_POST['from_name']),
                 mb_strtolower(trim((string)$_POST['from_email'])),
@@ -227,7 +272,7 @@ function handle_senders(): void
                 (string)$_POST['dkim_policy'],
             ]
         );
-        AuditLogger::log('sender_identity_created', ['from_email' => $_POST['from_email']]);
+        AuditLogger::log('sender_identity_created', ['from_email' => $_POST['from_email'], 'organization_id' => $orgId]);
         Session::flash('success', '送信者/SMTP設定を保存しました。');
         redirect_route('senders');
     }
@@ -236,27 +281,57 @@ function handle_senders(): void
         'SELECT si.*, sa.name AS account_name, sa.smtp_host, sa.smtp_port, sa.encryption, sa.per_minute_limit, sa.daily_limit
          FROM sender_identities si
          JOIN smtp_accounts sa ON sa.id = si.smtp_account_id
-         ORDER BY si.id DESC'
+         WHERE si.organization_id = ?
+         ORDER BY si.id DESC',
+        [$orgId]
     );
     render('senders', ['title' => '送信者/SMTP管理', 'active' => 'senders', 'senders' => $senders]);
 }
 
+function handle_dns_checks(): void
+{
+    Auth::requireRole(['system_admin', 'delivery_admin']);
+    $orgId = OrganizationService::currentId();
+    $result = null;
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        try {
+            $result = DnsDiagnosticsService::run((int)$_POST['sender_identity_id']);
+            Session::flash('success', 'DNS診断を実行しました。');
+        } catch (Throwable $e) {
+            Session::flash('error', $e->getMessage());
+        }
+    }
+
+    render('dns_checks', [
+        'title' => 'DNS診断',
+        'active' => 'dns_checks',
+        'senders' => Database::fetchAll('SELECT * FROM sender_identities WHERE organization_id = ? AND is_active = 1 ORDER BY id DESC', [$orgId]),
+        'result' => $result,
+        'history' => DnsDiagnosticsService::latest(),
+    ]);
+}
+
 function handle_templates(): void
 {
+    $orgId = OrganizationService::currentId();
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         Auth::requireRole(['system_admin', 'delivery_admin', 'editor']);
+        $name = trim((string)$_POST['name']);
+        $subject = trim((string)$_POST['subject']);
+        $bodyText = (string)$_POST['body_text'];
+        $bodyHtml = sanitize_html_email((string)($_POST['body_html'] ?? ''));
         Database::execute(
-            'INSERT INTO mail_templates (name, subject, body_text, body_html, created_by, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, NOW(), NOW())',
-            [
-                trim((string)$_POST['name']),
-                trim((string)$_POST['subject']),
-                (string)$_POST['body_text'],
-                sanitize_html_email((string)($_POST['body_html'] ?? '')),
-                (int)current_user()['id'],
-            ]
+            'INSERT INTO mail_templates (organization_id, name, subject, body_text, body_html, created_by, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())',
+            [$orgId, $name, $subject, $bodyText, $bodyHtml, (int)current_user()['id']]
         );
-        AuditLogger::log('template_created', ['name' => $_POST['name']]);
+        TemplateVersionService::saveVersion([
+            'id' => Database::lastInsertId(),
+            'subject' => $subject,
+            'body_text' => $bodyText,
+            'body_html' => $bodyHtml,
+        ], (int)current_user()['id']);
+        AuditLogger::log('template_created', ['name' => $name, 'organization_id' => $orgId]);
         Session::flash('success', 'テンプレートを保存しました。');
         redirect_route('templates');
     }
@@ -264,8 +339,77 @@ function handle_templates(): void
     render('templates', [
         'title' => 'テンプレート管理',
         'active' => 'templates',
-        'templates' => Database::fetchAll('SELECT * FROM mail_templates ORDER BY id DESC LIMIT 100'),
-        'senders' => Database::fetchAll('SELECT * FROM sender_identities WHERE is_active = 1 ORDER BY id DESC'),
+        'templates' => Database::fetchAll('SELECT * FROM mail_templates WHERE organization_id = ? ORDER BY id DESC LIMIT 100', [$orgId]),
+        'senders' => Database::fetchAll('SELECT * FROM sender_identities WHERE organization_id = ? AND is_active = 1 ORDER BY id DESC', [$orgId]),
+    ]);
+}
+
+function handle_template_edit(): void
+{
+    Auth::requireRole(['system_admin', 'delivery_admin', 'editor']);
+    $orgId = OrganizationService::currentId();
+    $id = (int)($_GET['id'] ?? $_POST['id'] ?? 0);
+    $template = Database::fetch('SELECT * FROM mail_templates WHERE id = ? AND organization_id = ? LIMIT 1', [$id, $orgId]);
+    if (!$template) {
+        throw new RuntimeException('テンプレートが見つかりません。');
+    }
+
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        TemplateVersionService::saveVersion($template, (int)current_user()['id']);
+        Database::execute(
+            'UPDATE mail_templates
+             SET name = ?, subject = ?, body_text = ?, body_html = ?, updated_at = NOW()
+             WHERE id = ? AND organization_id = ?',
+            [
+                trim((string)$_POST['name']),
+                trim((string)$_POST['subject']),
+                (string)$_POST['body_text'],
+                sanitize_html_email((string)($_POST['body_html'] ?? '')),
+                $id,
+                $orgId,
+            ]
+        );
+        AuditLogger::log('template_updated', ['template_id' => $id]);
+        Session::flash('success', 'テンプレートを更新しました。');
+        redirect_route('template_edit', ['id' => $id]);
+    }
+
+    render('template_edit', [
+        'title' => 'テンプレート編集',
+        'active' => 'templates',
+        'template' => $template,
+        'versions' => TemplateVersionService::versions($id),
+    ]);
+}
+
+function handle_template_compare(): void
+{
+    Auth::requireRole(['system_admin', 'delivery_admin', 'editor']);
+    $orgId = OrganizationService::currentId();
+    $id = (int)($_GET['id'] ?? 0);
+    $template = Database::fetch('SELECT * FROM mail_templates WHERE id = ? AND organization_id = ? LIMIT 1', [$id, $orgId]);
+    if (!$template) {
+        throw new RuntimeException('テンプレートが見つかりません。');
+    }
+
+    $versions = TemplateVersionService::versions($id);
+    $leftKey = (string)($_GET['left'] ?? ($versions[0]['id'] ?? 'current'));
+    $rightKey = (string)($_GET['right'] ?? 'current');
+    $left = template_snapshot($template, $versions, $leftKey);
+    $right = template_snapshot($template, $versions, $rightKey);
+
+    render('template_compare', [
+        'title' => 'テンプレート差分',
+        'active' => 'templates',
+        'template' => $template,
+        'versions' => $versions,
+        'leftKey' => $leftKey,
+        'rightKey' => $rightKey,
+        'left' => $left,
+        'right' => $right,
+        'subjectDiff' => TemplateVersionService::diff($left['subject'], $right['subject']),
+        'textDiff' => TemplateVersionService::diff($left['body_text'], $right['body_text']),
+        'htmlDiff' => TemplateVersionService::diff((string)$left['body_html'], (string)$right['body_html']),
     ]);
 }
 
@@ -306,18 +450,25 @@ function handle_test_send(): void
 
 function handle_campaigns(): void
 {
+    $orgId = OrganizationService::currentId();
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         Auth::requireRole(['system_admin', 'delivery_admin', 'sender']);
-        $template = Database::fetch('SELECT * FROM mail_templates WHERE id = ?', [(int)$_POST['template_id']]);
+        $template = Database::fetch('SELECT * FROM mail_templates WHERE id = ? AND organization_id = ?', [(int)$_POST['template_id'], $orgId]);
+        $sender = Database::fetch('SELECT * FROM sender_identities WHERE id = ? AND organization_id = ?', [(int)$_POST['sender_identity_id'], $orgId]);
+        if (!$template || !$sender) {
+            Session::flash('error', '送信者またはテンプレートが見つかりません。');
+            redirect_route('campaigns');
+        }
         $body = ($template['body_text'] ?? '') . "\n" . ($template['body_html'] ?? '');
         if (!str_contains($body, '{{unsubscribe_url}}')) {
             Session::flash('error', 'テンプレートに {{unsubscribe_url}} が含まれていないため作成できません。');
             redirect_route('campaigns');
         }
         Database::execute(
-            'INSERT INTO campaigns (name, sender_identity_id, template_id, subject_override, scheduled_at, status, created_by, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, "draft", ?, NOW(), NOW())',
+            'INSERT INTO campaigns (organization_id, name, sender_identity_id, template_id, subject_override, scheduled_at, status, created_by, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, "draft", ?, NOW(), NOW())',
             [
+                $orgId,
                 trim((string)$_POST['name']),
                 (int)$_POST['sender_identity_id'],
                 (int)$_POST['template_id'],
@@ -326,7 +477,7 @@ function handle_campaigns(): void
                 (int)current_user()['id'],
             ]
         );
-        AuditLogger::log('campaign_created', ['name' => $_POST['name']]);
+        AuditLogger::log('campaign_created', ['name' => $_POST['name'], 'organization_id' => $orgId]);
         Session::flash('success', 'キャンペーンを作成しました。');
         redirect_route('campaigns');
     }
@@ -340,10 +491,12 @@ function handle_campaigns(): void
              FROM campaigns c
              JOIN sender_identities si ON si.id = c.sender_identity_id
              JOIN mail_templates mt ON mt.id = c.template_id
-             ORDER BY c.id DESC'
+             WHERE c.organization_id = ?
+             ORDER BY c.id DESC',
+            [$orgId]
         ),
-        'senders' => Database::fetchAll('SELECT * FROM sender_identities WHERE is_active = 1 ORDER BY id DESC'),
-        'templates' => Database::fetchAll('SELECT * FROM mail_templates ORDER BY id DESC'),
+        'senders' => Database::fetchAll('SELECT * FROM sender_identities WHERE organization_id = ? AND is_active = 1 ORDER BY id DESC', [$orgId]),
+        'templates' => Database::fetchAll('SELECT * FROM mail_templates WHERE organization_id = ? ORDER BY id DESC', [$orgId]),
     ]);
 }
 
@@ -360,23 +513,32 @@ function handle_queue_campaign(): void
 
 function handle_queue(): void
 {
+    $orgId = OrganizationService::currentId();
     $rows = Database::fetchAll(
         'SELECT mq.*, c.name AS campaign_name, r.email AS recipient_email
          FROM mail_queue mq
          JOIN campaigns c ON c.id = mq.campaign_id
          JOIN recipients r ON r.id = mq.recipient_id
-         ORDER BY mq.id DESC LIMIT 200'
+         WHERE mq.organization_id = ?
+         ORDER BY mq.id DESC LIMIT 200',
+        [$orgId]
     );
     render('queue', ['title' => '配信キュー', 'active' => 'queue', 'rows' => $rows]);
 }
 
 function handle_unsubscribes(): void
 {
+    $orgId = OrganizationService::currentId();
     render('unsubscribes', [
         'title' => '購読停止一覧',
         'active' => 'unsubscribes',
         'rows' => Database::fetchAll(
-            'SELECT u.*, r.email FROM unsubscribes u JOIN recipients r ON r.id = u.recipient_id ORDER BY u.id DESC LIMIT 200'
+            'SELECT u.*, r.email
+             FROM unsubscribes u
+             JOIN recipients r ON r.id = u.recipient_id
+             WHERE r.organization_id = ?
+             ORDER BY u.id DESC LIMIT 200',
+            [$orgId]
         ),
     ]);
 }
@@ -410,12 +572,71 @@ function handle_unsubscribe(): void
     render('unsubscribe', ['title' => '購読停止', 'active' => '', 'queue' => $queue]);
 }
 
+function handle_subscribe(): void
+{
+    $slug = (string)($_GET['org'] ?? $_POST['org'] ?? '');
+    $done = false;
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        try {
+            OptInService::request(
+                (string)($_POST['email'] ?? ''),
+                (string)($_POST['name'] ?? ''),
+                (string)($_POST['company'] ?? ''),
+                OrganizationService::publicId($slug)
+            );
+            $done = true;
+        } catch (Throwable $e) {
+            Session::flash('error', $e->getMessage());
+        }
+    }
+
+    render('subscribe', [
+        'title' => '配信登録',
+        'active' => '',
+        'orgSlug' => $slug,
+        'done' => $done,
+    ]);
+}
+
+function handle_confirm_optin(): void
+{
+    $email = OptInService::confirm((string)($_GET['t'] ?? ''));
+    render('confirm_optin', ['title' => '配信登録確認', 'active' => '', 'email' => $email]);
+}
+
 function handle_bounces(): void
 {
+    $orgId = OrganizationService::currentId();
     render('bounces', [
         'title' => 'バウンス管理',
         'active' => 'bounces',
-        'rows' => Database::fetchAll('SELECT * FROM bounce_messages ORDER BY id DESC LIMIT 200'),
+        'rows' => Database::fetchAll(
+            'SELECT * FROM bounce_messages
+             WHERE organization_id = ? OR organization_id IS NULL
+             ORDER BY id DESC LIMIT 200',
+            [$orgId]
+        ),
+    ]);
+}
+
+function handle_organizations(): void
+{
+    Auth::requireRole(['system_admin']);
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        try {
+            OrganizationService::create((string)($_POST['name'] ?? ''), (string)($_POST['slug'] ?? ''));
+            AuditLogger::log('organization_created', ['name' => $_POST['name'] ?? '', 'slug' => $_POST['slug'] ?? '']);
+            Session::flash('success', '組織を作成しました。');
+        } catch (Throwable $e) {
+            Session::flash('error', $e->getMessage());
+        }
+        redirect_route('organizations');
+    }
+
+    render('organizations', [
+        'title' => '組織管理',
+        'active' => 'organizations',
+        'organizations' => OrganizationService::all(),
     ]);
 }
 
@@ -424,14 +645,26 @@ function handle_users(): void
     Auth::requireRole(['system_admin']);
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         Database::execute(
-            'UPDATE users SET role = ?, status = ?, approved_at = CASE WHEN ? = "active" THEN COALESCE(approved_at, NOW()) ELSE approved_at END, updated_at = NOW() WHERE id = ?',
-            [(string)$_POST['role'], (string)$_POST['status'], (string)$_POST['status'], (int)$_POST['user_id']]
+            'UPDATE users
+             SET organization_id = ?, role = ?, status = ?, approved_at = CASE WHEN ? = "active" THEN COALESCE(approved_at, NOW()) ELSE approved_at END, updated_at = NOW()
+             WHERE id = ?',
+            [(int)$_POST['organization_id'], (string)$_POST['role'], (string)$_POST['status'], (string)$_POST['status'], (int)$_POST['user_id']]
         );
         AuditLogger::log('user_updated', ['user_id' => (int)$_POST['user_id']]);
         Session::flash('success', '利用者を更新しました。');
         redirect_route('users');
     }
-    render('users', ['title' => '利用者管理', 'active' => 'users', 'users' => Database::fetchAll('SELECT * FROM users ORDER BY id DESC')]);
+    render('users', [
+        'title' => '利用者管理',
+        'active' => 'users',
+        'users' => Database::fetchAll(
+            'SELECT u.*, o.name AS organization_name
+             FROM users u
+             LEFT JOIN organizations o ON o.id = u.organization_id
+             ORDER BY u.id DESC'
+        ),
+        'organizations' => OrganizationService::all(),
+    ]);
 }
 
 function handle_audit(): void
@@ -452,6 +685,13 @@ function handle_settings(): void
             redirect_route('settings');
         }
 
+        if ($action === 'google_settings') {
+            GoogleAuthService::updateSettings($_POST);
+            AuditLogger::log('google_settings_updated', ['allowed_domain' => $_POST['google_allowed_domain'] ?? '']);
+            Session::flash('success', 'Googleログイン設定を保存しました。');
+            redirect_route('settings');
+        }
+
         $model = trim((string)($_POST['openai_model'] ?? ''));
         if ($model !== '') {
             SettingsService::set('openai_model', OpenAiService::normalizeModel($model));
@@ -466,14 +706,43 @@ function handle_settings(): void
     }
 
     $mailSettings = MailSettingsService::formValues();
+    $googleSettings = GoogleAuthService::settings();
     render('settings', [
         'title' => 'システム設定',
         'active' => 'settings',
         'mailSettings' => $mailSettings,
+        'googleSettings' => $googleSettings,
         'openaiModel' => OpenAiService::normalizeModel(SettingsService::get('openai_model', (string)Config::get('openai.model', 'gpt-5.6-terra')) ?: 'gpt-5.6-terra'),
         'openaiModelOptions' => OpenAiService::modelOptions(),
         'openaiKeySet' => SettingsService::isSecretSet('openai_api_key', (string)Config::get('openai.api_key', '')),
     ]);
+}
+
+function template_snapshot(array $template, array $versions, string $key): array
+{
+    if ($key === 'current') {
+        return [
+            'id' => 'current',
+            'label' => '現在版',
+            'subject' => (string)$template['subject'],
+            'body_text' => (string)$template['body_text'],
+            'body_html' => (string)($template['body_html'] ?? ''),
+        ];
+    }
+
+    foreach ($versions as $version) {
+        if ((string)$version['id'] === $key) {
+            return [
+                'id' => (string)$version['id'],
+                'label' => '版 #' . $version['id'] . ' / ' . $version['created_at'],
+                'subject' => (string)$version['subject'],
+                'body_text' => (string)$version['body_text'],
+                'body_html' => (string)($version['body_html'] ?? ''),
+            ];
+        }
+    }
+
+    return template_snapshot($template, $versions, 'current');
 }
 
 function sanitize_html_email(string $html): string

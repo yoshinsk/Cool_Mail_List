@@ -23,6 +23,7 @@ final class ImportService
         $delimiter = self::detectDelimiter($text);
         $rows = self::parseRows($text, $delimiter);
         $result = ['inserted' => 0, 'updated' => 0, 'skipped' => 0, 'errors' => []];
+        $organizationId = OrganizationService::currentId();
 
         foreach ($rows as $lineNumber => $row) {
             $email = mb_strtolower(trim((string)($row[0] ?? '')));
@@ -35,7 +36,10 @@ final class ImportService
                 continue;
             }
 
-            $existing = Database::fetch('SELECT id FROM recipients WHERE email = ? LIMIT 1', [$email]);
+            $existing = Database::fetch(
+                'SELECT id FROM recipients WHERE organization_id = ? AND email = ? LIMIT 1',
+                [$organizationId, $email]
+            );
             if ($existing && $mode === 'skip') {
                 $result['skipped']++;
                 continue;
@@ -51,9 +55,9 @@ final class ImportService
             }
 
             Database::execute(
-                'INSERT INTO recipients (email, name, company, tags, source, status, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, ?, "active", NOW(), NOW())',
-                [$email, $name, $company, $tags, 'import']
+                'INSERT INTO recipients (organization_id, email, name, company, tags, source, status, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, "active", NOW(), NOW())',
+                [$organizationId, $email, $name, $company, $tags, 'import']
             );
             $result['inserted']++;
         }

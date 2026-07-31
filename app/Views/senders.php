@@ -39,7 +39,7 @@
 <section class="panel">
     <div class="table-responsive">
         <table class="table table-hover align-middle">
-            <thead><tr><th>ID</th><th>From</th><th>SMTP</th><th>暗号化</th><th>分上限</th><th>日上限</th><th>DKIM</th></tr></thead>
+            <thead><tr><th>ID</th><th>From</th><th>SMTP</th><th>暗号化</th><th>分上限</th><th>日上限</th><th>DKIM</th><th>確認</th></tr></thead>
             <tbody>
             <?php foreach ($senders as $sender): ?>
                 <tr>
@@ -50,6 +50,7 @@
                     <td><?= h((string)$sender['per_minute_limit']) ?></td>
                     <td><?= h((string)$sender['daily_limit']) ?></td>
                     <td><?= h($sender['dkim_policy']) ?></td>
+                    <td><a class="btn btn-sm btn-outline-secondary" href="<?= h(route_url('dns_checks')) ?>">DNS診断</a></td>
                 </tr>
             <?php endforeach; ?>
             </tbody>

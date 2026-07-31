@@ -14,8 +14,8 @@ final class QueueService
             'SELECT c.*, si.smtp_account_id
              FROM campaigns c
              JOIN sender_identities si ON si.id = c.sender_identity_id
-             WHERE c.id = ?',
-            [$campaignId]
+             WHERE c.id = ? AND c.organization_id = ?',
+            [$campaignId, OrganizationService::currentId()]
         );
         if (!$campaign) {
             throw new RuntimeException('キャンペーンが見つかりません。');
@@ -24,8 +24,10 @@ final class QueueService
         $recipients = Database::fetchAll(
             'SELECT id FROM recipients
              WHERE status = "active"
+             AND organization_id = ?
              AND NOT EXISTS (SELECT 1 FROM unsubscribes u WHERE u.recipient_id = recipients.id)
-             ORDER BY id'
+             ORDER BY id',
+            [(int)$campaign['organization_id']]
         );
 
         $created = 0;
@@ -39,9 +41,10 @@ final class QueueService
             }
             Database::execute(
                 'INSERT INTO mail_queue
-                    (campaign_id, recipient_id, sender_identity_id, smtp_account_id, scheduled_at, status, return_path_token, unsubscribe_token, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, ?, "pending", ?, ?, NOW(), NOW())',
+                    (organization_id, campaign_id, recipient_id, sender_identity_id, smtp_account_id, scheduled_at, status, return_path_token, unsubscribe_token, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, "pending", ?, ?, NOW(), NOW())',
                 [
+                    (int)$campaign['organization_id'],
                     $campaignId,
                     (int)$recipient['id'],
                     (int)$campaign['sender_identity_id'],

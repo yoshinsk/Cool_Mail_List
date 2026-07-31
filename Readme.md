@@ -23,17 +23,23 @@ Cool Mail List は、PHP + MariaDB で構築する独自メール配信管理シ
 - DSN バウンス解析の基礎
 - IMAP によるバウンスメール定期取得
 - パスワード再設定メール
+- Google Identity Services の ID トークン検証
+- Googleログインによる既存承認済みユーザー連携
+- Googleログイン新規ユーザーの承認待ち登録
 - OpenAI API キーの暗号化保存
 - AI 文面提案とテンプレート採用
+- DNS 診断の詳細表示
+- 公開フォームとダブルオプトイン
+- テンプレート版保存と差分比較
+- 複数組織対応
 - 監査ログ
 
-## 未実装または第2段階
+## 今後の拡張候補
 
-- Google Identity Services の ID トークン検証
-- DNS 診断の詳細表示
-- ダブルオプトイン
-- テンプレート差分比較
-- 複数組織対応
+- 組織ごとの詳細な権限分離
+- キャンペーン承認ワークフロー
+- 配信レポート、クリック計測、ABテスト
+- Google OAuth の追加スコープ連携
 
 ## 技術構成
 
@@ -101,6 +107,8 @@ BOUNCE_IMAP_PORT=993
 BOUNCE_IMAP_ENCRYPTION=ssl
 BOUNCE_IMAP_USER=bounce@example.com
 BOUNCE_IMAP_PASS=********
+GOOGLE_CLIENT_ID=
+GOOGLE_ALLOWED_DOMAIN=
 OPENAI_MODEL=gpt-5.6-terra
 ```
 
@@ -108,6 +116,12 @@ DB スキーマを適用します。
 
 ```bash
 mysql -u mailerdb -p mailerdb < database/schema.sql
+```
+
+既存DBへ第2段階機能を追加する場合は、移行SQLを適用します。
+
+```bash
+mysql -u mailerdb -p mailerdb < database/migrations/2026_07_31_remaining_features.sql
 ```
 
 初期管理者を作成します。
@@ -146,7 +160,40 @@ Return-Path は送信者ごとに分けず、常に「固定バウンス基準�
 
 文面提案画面では、配信目的、対象者、トーン、商品/サービス概要、要点、CTA、文字数目安を入力し、生成結果を `ai_generation_requests` と `ai_generation_results` に保存します。生成結果は直接送信せず、テンプレートとして採用してからキャンペーンで使用します。
 
-Google ログインは現時点では後回しです。
+## Google ログイン
+
+システム設定画面で `Google Client ID` を保存すると、ログイン画面に Sign in with Google ボタンが表示されます。サーバ側では Google の公開証明書で ID トークン署名、`aud`、`iss`、`exp`、`sub`、`email_verified` を検証します。
+
+`Google Workspace制限` を設定した場合は、メールアドレスのドメインではなく ID トークンの `hd` クレームで制限します。既存の承認済みユーザーはメールアドレス一致でGoogleアカウントを連携し、未登録ユーザーは `pending_approval` として登録します。
+
+## ダブルオプトイン
+
+公開登録フォームは次のURLで利用できます。
+
+```text
+https://mail.example.com/index.php?r=subscribe
+https://mail.example.com/index.php?r=subscribe&org=default
+```
+
+登録時は `pending_optin` の宛先を作成し、システムSMTPから7日有効の確認URLを送信します。確認URLを開くと宛先ステータスが `active` になります。
+
+## DNS 診断
+
+「DNS診断」画面で送信者を選択すると、FromドメインとSMTPホストに対して以下を確認し、`sender_domain_checks` に詳細JSON付きで保存します。
+
+- MX
+- SPF
+- DKIM
+- DMARC
+- PTR
+
+## テンプレート版管理
+
+テンプレート作成時と更新前に `mail_template_versions` へ保存版を残します。「差分」画面では保存版同士、または保存版と現在版を件名、テキスト本文、HTML本文ごとに比較できます。
+
+## 複数組織
+
+既定組織 `Default` を自動作成し、ユーザー、宛先、SMTPアカウント、送信者、テンプレート、AI生成履歴、キャンペーン、キューを `organization_id` で分離します。`system_admin` は「組織管理」で組織を追加し、「利用者管理」で所属組織を割り当てます。
 
 ## 公開ディレクトリ配置
 
@@ -174,5 +221,8 @@ Google ログインは現時点では後回しです。
 - PHPMailer: https://github.com/PHPMailer/PHPMailer
 - PHPMailer 6.10.0: https://github.com/PHPMailer/PHPMailer/releases/tag/v6.10.0
 - OpenAI Text generation: https://developers.openai.com/api/docs/guides/text
+- OpenAI Models: https://developers.openai.com/api/docs/models
+- Google ID token verification: https://developers.google.com/identity/gsi/web/guides/verify-google-id-token
+- Google Sign in JavaScript API: https://developers.google.com/identity/gsi/web/reference/js-reference
 - One-Click List-Unsubscribe, RFC 8058: https://datatracker.ietf.org/doc/html/rfc8058
 - List-Unsubscribe Header, RFC 2369: https://www.ietf.org/rfc/rfc2369.txt

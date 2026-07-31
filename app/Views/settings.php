@@ -13,13 +13,33 @@
                 <tr><th>QUEUE_BATCH_LIMIT</th><td><?= h((string)Config::get('queue.batch_limit')) ?></td></tr>
                 <tr><th>BOUNCE_DOMAIN</th><td><?= h((string)Config::get('mail.bounce_domain')) ?></td></tr>
                 <tr><th>固定バウンス基準アドレス</th><td><?= h($mailSettings['bounce_base_email']) ?></td></tr>
-                <tr><th>Google Client ID</th><td>後回し</td></tr>
+                <tr><th>Google Client ID</th><td><?= $googleSettings['client_id'] !== '' ? '設定済み' : '未設定' ?></td></tr>
+                <tr><th>Google Workspace制限</th><td><?= h($googleSettings['allowed_domain'] !== '' ? $googleSettings['allowed_domain'] : '制限なし') ?></td></tr>
                 <tr><th>OpenAI API Key</th><td><?= !empty($openaiKeySet) ? '設定済み' : '未設定' ?></td></tr>
                 <tr><th>システムSMTP</th><td><?= h($mailSettings['system_smtp_host'] . ':' . $mailSettings['system_smtp_port']) ?></td></tr>
                 <tr><th>バウンスIMAP</th><td><?= h($mailSettings['bounce_imap_host'] . ':' . $mailSettings['bounce_imap_port']) ?></td></tr>
             </tbody>
         </table>
     </div>
+</section>
+
+<section class="panel">
+    <div class="panel-title">Googleログイン設定</div>
+    <form method="post" class="stack-form">
+        <?= Csrf::field() ?>
+        <input type="hidden" name="action" value="google_settings">
+        <div class="row g-3">
+            <div class="col-md-8">
+                <label class="form-label" for="google_client_id">Google Client ID</label>
+                <input class="form-control" id="google_client_id" name="google_client_id" value="<?= h($googleSettings['client_id']) ?>" placeholder="000000000000-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label" for="google_allowed_domain">許可Workspaceドメイン</label>
+                <input class="form-control" id="google_allowed_domain" name="google_allowed_domain" value="<?= h($googleSettings['allowed_domain']) ?>" placeholder="example.com">
+            </div>
+        </div>
+        <button class="btn btn-primary" type="submit">Google設定を保存</button>
+    </form>
 </section>
 
 <section class="panel">

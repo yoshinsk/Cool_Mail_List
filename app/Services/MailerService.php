@@ -58,6 +58,7 @@ final class MailerService
 
     public static function sendTest(int $senderId, int $templateId, string $to): array
     {
+        $organizationId = OrganizationService::currentId();
         $item = Database::fetch(
             'SELECT si.from_name, si.from_email, si.reply_to,
                     sa.smtp_host, sa.smtp_port, sa.encryption, sa.auth_username, sa.auth_password_ciphertext,
@@ -67,8 +68,12 @@ final class MailerService
              FROM sender_identities si
              JOIN smtp_accounts sa ON sa.id = si.smtp_account_id
              JOIN mail_templates mt ON mt.id = ?
-             WHERE si.id = ? AND si.is_active = 1 AND sa.is_active = 1',
-            [$to, 'テスト宛先', $templateId, $senderId]
+             WHERE si.id = ?
+               AND si.organization_id = ?
+               AND mt.organization_id = si.organization_id
+               AND si.is_active = 1
+               AND sa.is_active = 1',
+            [$to, 'テスト宛先', $templateId, $senderId, $organizationId]
         );
         if (!$item) {
             throw new RuntimeException('送信者またはテンプレートが見つかりません。');

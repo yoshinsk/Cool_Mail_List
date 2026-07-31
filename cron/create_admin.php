@@ -17,22 +17,23 @@ if (!filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($password) < 12) {
 }
 
 $hash = password_hash($password, PASSWORD_DEFAULT);
+$organizationId = OrganizationService::defaultId();
 $existing = Database::fetch('SELECT id FROM users WHERE email = ? LIMIT 1', [$email]);
 
 if ($existing) {
     Database::execute(
         'UPDATE users
-         SET password_hash = ?, role = "system_admin", status = "active", email_verified_at = COALESCE(email_verified_at, NOW()), approved_at = COALESCE(approved_at, NOW()), updated_at = NOW()
+         SET organization_id = COALESCE(organization_id, ?), password_hash = ?, role = "system_admin", status = "active", email_verified_at = COALESCE(email_verified_at, NOW()), approved_at = COALESCE(approved_at, NOW()), updated_at = NOW()
          WHERE id = ?',
-        [$hash, (int)$existing['id']]
+        [$organizationId, $hash, (int)$existing['id']]
     );
     echo "updated admin: {$email}\n";
     exit(0);
 }
 
 Database::execute(
-    'INSERT INTO users (email, password_hash, role, status, email_verified_at, approved_at, created_at, updated_at)
-     VALUES (?, ?, "system_admin", "active", NOW(), NOW(), NOW(), NOW())',
-    [$email, $hash]
+    'INSERT INTO users (organization_id, email, password_hash, role, status, email_verified_at, approved_at, created_at, updated_at)
+     VALUES (?, ?, ?, "system_admin", "active", NOW(), NOW(), NOW(), NOW())',
+    [$organizationId, $email, $hash]
 );
 echo "created admin: {$email}\n";

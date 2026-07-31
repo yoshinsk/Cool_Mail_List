@@ -31,7 +31,7 @@
 <section class="panel">
     <div class="table-responsive">
         <table class="table table-hover align-middle">
-            <thead><tr><th>ID</th><th>名称</th><th>件名</th><th>作成日</th><th>テスト送信</th></tr></thead>
+            <thead><tr><th>ID</th><th>名称</th><th>件名</th><th>作成日</th><th>操作</th><th>テスト送信</th></tr></thead>
             <tbody>
             <?php foreach ($templates as $template): ?>
                 <tr>
@@ -39,6 +39,12 @@
                     <td><?= h($template['name']) ?></td>
                     <td><?= h($template['subject']) ?></td>
                     <td><?= h($template['created_at']) ?></td>
+                    <td>
+                        <div class="inline-form">
+                            <a class="btn btn-sm btn-outline-secondary" href="<?= h(route_url('template_edit', ['id' => (int)$template['id']])) ?>">編集</a>
+                            <a class="btn btn-sm btn-outline-secondary" href="<?= h(route_url('template_compare', ['id' => (int)$template['id']])) ?>">差分</a>
+                        </div>
+                    </td>
                     <td>
                         <form method="post" action="<?= h(route_url('test_send')) ?>" class="inline-form">
                             <?= Csrf::field() ?>

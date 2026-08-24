@@ -738,7 +738,14 @@ function handle_campaigns(): void
 
     $campaigns = Database::fetchAll(
         'SELECT c.*, si.from_email, mt.name AS template_name,
-                (SELECT COUNT(*) FROM mail_queue mq WHERE mq.campaign_id = c.id) AS queue_count
+                (SELECT COUNT(*) FROM mail_queue mq WHERE mq.campaign_id = c.id) AS queue_count,
+                (SELECT COUNT(*) FROM mail_queue mq WHERE mq.campaign_id = c.id AND mq.status IN ("pending", "sending", "temporary_failed")) AS queue_remaining_count,
+                (SELECT COUNT(*) FROM mail_queue mq WHERE mq.campaign_id = c.id AND mq.status = "pending") AS queue_pending_count,
+                (SELECT COUNT(*) FROM mail_queue mq WHERE mq.campaign_id = c.id AND mq.status = "sending") AS queue_sending_count,
+                (SELECT COUNT(*) FROM mail_queue mq WHERE mq.campaign_id = c.id AND mq.status = "temporary_failed") AS queue_temporary_failed_count,
+                (SELECT COUNT(*) FROM mail_queue mq WHERE mq.campaign_id = c.id AND mq.status = "sent") AS queue_sent_count,
+                (SELECT COUNT(*) FROM mail_queue mq WHERE mq.campaign_id = c.id AND mq.status = "permanent_failed") AS queue_permanent_failed_count,
+                (SELECT COUNT(*) FROM mail_queue mq WHERE mq.campaign_id = c.id AND mq.status = "skipped") AS queue_skipped_count
          FROM campaigns c
          JOIN sender_identities si ON si.id = c.sender_identity_id
          JOIN mail_templates mt ON mt.id = c.template_id

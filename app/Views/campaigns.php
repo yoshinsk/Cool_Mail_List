@@ -68,7 +68,7 @@ $canQueueCampaign = route_allowed_for_user('queue_campaign');
                         <span class="guide-number">6</span>
                         <div>
                             <h3>送信状況を確認する</h3>
-                            <p>予約日時を過ぎるとcronが毎分 <code>send_queue.php</code> を実行し、設定件数ずつ送信します。進行状況は <a href="<?= h(route_url('queue')) ?>">配信キュー</a>、到達後の停止は <a href="<?= h(route_url('bounces')) ?>">バウンス管理</a> と <a href="<?= h(route_url('unsubscribes')) ?>">購読停止一覧</a> で確認します。</p>
+                            <p>予約日時を過ぎるとcronが毎分 <code>send_queue.php</code> を実行し、設定件数ずつ送信します。キャンペーン一覧では配信残、送信済み、一時失敗を確認できます。詳細は <a href="<?= h(route_url('queue')) ?>">配信キュー</a>、到達後の停止は <a href="<?= h(route_url('bounces')) ?>">バウンス管理</a> と <a href="<?= h(route_url('unsubscribes')) ?>">購読停止一覧</a> で確認します。</p>
                         </div>
                     </div>
                 </div>
@@ -163,7 +163,7 @@ $canQueueCampaign = route_allowed_for_user('queue_campaign');
     <p class="section-help">キュー生成後は宛先ごとの送信予定が作成されます。キュー数が0の間だけキュー生成できます。</p>
     <div class="table-responsive">
         <table class="table table-hover align-middle">
-            <thead><tr><th>ID</th><th>名称</th><th>From</th><th>テンプレート</th><th>配信先</th><th>状態</th><th>予約日時</th><th>キュー</th><th>操作</th></tr></thead>
+            <thead><tr><th>ID</th><th>名称</th><th>From</th><th>テンプレート</th><th>配信先</th><th>状態</th><th>予約日時</th><th>配信残</th><th>操作</th></tr></thead>
             <tbody>
             <?php foreach ($campaigns as $campaign): ?>
                 <tr>
@@ -173,11 +173,30 @@ $canQueueCampaign = route_allowed_for_user('queue_campaign');
                     <td><?= h($campaign['template_name']) ?></td>
                     <td>
                         <?= h($campaign['recipient_filter_label']) ?><br>
-                        <span class="text-muted small">現在の対象目安: <?= h((string)$campaign['eligible_recipient_count']) ?>件</span>
+                        <?php if ((int)$campaign['queue_count'] > 0): ?>
+                            <span class="text-muted small">キュー生成済み: <?= h((string)$campaign['queue_count']) ?>件</span>
+                        <?php else: ?>
+                            <span class="text-muted small">キュー生成前の対象目安: <?= h((string)$campaign['eligible_recipient_count']) ?>件</span>
+                        <?php endif; ?>
                     </td>
                     <td><span class="status-badge"><?= h($campaign['status']) ?></span></td>
                     <td><?= h($campaign['scheduled_at']) ?></td>
-                    <td><?= h((string)$campaign['queue_count']) ?></td>
+                    <td>
+                        <?php if ((int)$campaign['queue_count'] > 0): ?>
+                            <div class="delivery-progress <?= (int)$campaign['queue_remaining_count'] > 0 ? 'has-remaining' : 'is-complete' ?>">
+                                <strong><?= h((string)$campaign['queue_remaining_count']) ?>通</strong>
+                                <span>配信残</span>
+                            </div>
+                            <div class="delivery-progress-detail">
+                                送信済 <?= h((string)$campaign['queue_sent_count']) ?> / 未送信 <?= h((string)$campaign['queue_pending_count']) ?> / 送信中 <?= h((string)$campaign['queue_sending_count']) ?> / 一時失敗 <?= h((string)$campaign['queue_temporary_failed_count']) ?>
+                                <?php if ((int)$campaign['queue_permanent_failed_count'] > 0 || (int)$campaign['queue_skipped_count'] > 0): ?>
+                                    <br>恒久失敗 <?= h((string)$campaign['queue_permanent_failed_count']) ?> / スキップ <?= h((string)$campaign['queue_skipped_count']) ?>
+                                <?php endif; ?>
+                            </div>
+                        <?php else: ?>
+                            <span class="text-muted small">未生成</span>
+                        <?php endif; ?>
+                    </td>
                     <td>
                         <?php if ($canQueueCampaign && (int)$campaign['queue_count'] === 0): ?>
                             <form method="post" action="<?= h(route_url('queue_campaign')) ?>">

@@ -192,6 +192,44 @@ body {
     font-size: 0.86rem;
 }
 
+.delivery-progress {
+    display: inline-grid;
+    gap: 2px;
+    min-width: 108px;
+    padding: 8px 10px;
+    border: 1px solid var(--cml-border);
+    border-radius: 8px;
+    background: #f8fafc;
+}
+
+.delivery-progress.has-remaining {
+    border-color: #f59e0b;
+    background: #fffbeb;
+}
+
+.delivery-progress.is-complete {
+    border-color: #99f6e4;
+    background: #f0fdfa;
+}
+
+.delivery-progress strong {
+    color: #0f172a;
+    font-size: 1.05rem;
+    line-height: 1.1;
+}
+
+.delivery-progress span,
+.delivery-progress-detail {
+    color: var(--cml-muted);
+    font-size: 0.78rem;
+    line-height: 1.45;
+}
+
+.delivery-progress-detail {
+    margin-top: 5px;
+    min-width: 220px;
+}
+
 .sender-edit-panel {
     background: #f8fafc;
     border: 1px solid var(--cml-border);

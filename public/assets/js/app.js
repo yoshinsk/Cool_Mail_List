@@ -13,6 +13,7 @@
     const balloon = document.createElement('div');
     const balloonTitle = document.createElement('strong');
     const balloonBody = document.createElement('span');
+    const allGuideFields = [];
     let activeField = null;
     let lockedField = null;
 
@@ -148,7 +149,7 @@
     }
 
     function hideOtherGuides(activeField) {
-        fields.forEach(function (field) {
+        allGuideFields.forEach(function (field) {
             if (field !== activeField) {
                 hideGuideNow(field);
             }
@@ -203,6 +204,7 @@
         if (fields.length === 0) {
             return;
         }
+        allGuideFields.push(...fields);
         const submitButtons = Array.from(form.querySelectorAll('button[type="submit"], input[type="submit"]'));
         form.noValidate = true;
 

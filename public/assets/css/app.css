@@ -282,7 +282,8 @@ body {
 .guide-inline-balloon {
     position: absolute;
     z-index: 1085;
-    max-width: 330px;
+    width: max-content;
+    max-width: min(330px, calc(100vw - 20px));
     padding: 10px 12px;
     border: 1px solid #93c5fd;
     border-radius: 8px;

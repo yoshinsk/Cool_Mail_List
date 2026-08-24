@@ -93,7 +93,7 @@ $canQueueCampaign = route_allowed_for_user('queue_campaign');
         </div>
         <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#campaignGuideModal">手順を見る</button>
     </div>
-    <form method="post" class="row g-3" id="campaignCreateForm" data-campaign-guide-form>
+    <form method="post" class="row g-3" id="campaignCreateForm">
         <?= Csrf::field() ?>
         <div class="col-md-4">
             <label class="form-label" for="campaign_name">キャンペーン名</label>

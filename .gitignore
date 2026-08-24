@@ -2,6 +2,7 @@
 /storage/logs/*
 /storage/imports/*
 /storage/mail_raw/*
+/storage/backups/*
 !/storage/logs/.gitkeep
 !/storage/imports/.gitkeep
 !/storage/mail_raw/.gitkeep

@@ -5,30 +5,25 @@
 
 (function initCampaignGuideBalloons() {
     const form = document.querySelector('[data-campaign-guide-form]');
-    if (!(form instanceof HTMLFormElement) || !window.bootstrap || !bootstrap.Popover) {
+    if (!(form instanceof HTMLFormElement)) {
         return;
     }
 
     const fields = Array.from(form.querySelectorAll('[data-guide-message]'));
     const submitButtons = Array.from(form.querySelectorAll('button[type="submit"], input[type="submit"]'));
-    const popovers = new Map();
     const hideTimers = new Map();
+    const balloon = document.createElement('div');
+    const balloonTitle = document.createElement('strong');
+    const balloonBody = document.createElement('span');
+    let activeField = null;
     let lockedField = null;
     form.noValidate = true;
 
-    function popoverFor(field) {
-        if (!popovers.has(field)) {
-            popovers.set(field, new bootstrap.Popover(field, {
-                container: 'body',
-                customClass: 'guide-balloon',
-                placement: field.dataset.guidePlacement || 'top',
-                trigger: 'manual',
-                title: field.dataset.guideTitle || '',
-                content: field.dataset.guideMessage || ''
-            }));
-        }
-        return popovers.get(field);
-    }
+    balloon.className = 'guide-inline-balloon';
+    balloon.setAttribute('role', 'tooltip');
+    balloon.hidden = true;
+    balloon.append(balloonTitle, balloonBody);
+    document.body.appendChild(balloon);
 
     function clearHideTimer(field) {
         const timer = hideTimers.get(field);
@@ -43,9 +38,9 @@
         if (lockedField === field) {
             lockedField = null;
         }
-        const popover = popovers.get(field);
-        if (popover) {
-            popover.hide();
+        if (!field || activeField === field) {
+            activeField = null;
+            balloon.hidden = true;
         }
     }
 
@@ -56,10 +51,7 @@
         clearHideTimer(field);
         hideTimers.set(field, window.setTimeout(function () {
             hideTimers.delete(field);
-            const popover = popovers.get(field);
-            if (popover) {
-                popover.hide();
-            }
+            hideGuideNow(field);
         }, 120));
     }
 
@@ -74,7 +66,28 @@
     function showGuide(field) {
         clearHideTimer(field);
         hideOtherGuides(field);
-        popoverFor(field).show();
+        activeField = field;
+        balloonTitle.textContent = field.dataset.guideTitle || '';
+        balloonBody.textContent = field.dataset.guideMessage || '';
+        balloon.hidden = false;
+        positionGuideBalloon(field);
+    }
+
+    function positionGuideBalloon(field) {
+        const rect = field.getBoundingClientRect();
+        const scrollX = window.scrollX || document.documentElement.scrollLeft;
+        const scrollY = window.scrollY || document.documentElement.scrollTop;
+        const margin = 10;
+        const maxLeft = scrollX + document.documentElement.clientWidth - balloon.offsetWidth - margin;
+        const left = Math.max(scrollX + margin, Math.min(scrollX + rect.left, maxLeft));
+        let top = scrollY + rect.top - balloon.offsetHeight - margin;
+        balloon.classList.remove('is-below');
+        if (top < scrollY + margin) {
+            top = scrollY + rect.bottom + margin;
+            balloon.classList.add('is-below');
+        }
+        balloon.style.left = left + 'px';
+        balloon.style.top = top + 'px';
     }
 
     function firstInvalidField() {
@@ -144,6 +157,17 @@
             guideInvalidField(field);
         });
     });
+
+    window.addEventListener('resize', function () {
+        if (activeField && !balloon.hidden) {
+            positionGuideBalloon(activeField);
+        }
+    });
+    window.addEventListener('scroll', function () {
+        if (activeField && !balloon.hidden) {
+            positionGuideBalloon(activeField);
+        }
+    }, true);
 })();
 
 document.addEventListener('submit', function (event) {

@@ -279,18 +279,49 @@ body {
     align-items: flex-end;
 }
 
-.guide-balloon {
-    --bs-popover-max-width: 330px;
-    --bs-popover-border-color: #93c5fd;
-    --bs-popover-header-bg: #eff6ff;
-    --bs-popover-header-color: var(--cml-primary-dark);
-    --bs-popover-body-color: #334155;
-    --bs-popover-box-shadow: 0 16px 36px rgba(15, 23, 42, 0.14);
+.guide-inline-balloon {
+    position: absolute;
+    z-index: 1085;
+    max-width: 330px;
+    padding: 10px 12px;
+    border: 1px solid #93c5fd;
+    border-radius: 8px;
+    background: #ffffff;
+    box-shadow: 0 16px 36px rgba(15, 23, 42, 0.14);
+    color: #334155;
     font-size: 0.88rem;
+    line-height: 1.55;
 }
 
-.guide-balloon .popover-body {
-    line-height: 1.55;
+.guide-inline-balloon[hidden] {
+    display: none;
+}
+
+.guide-inline-balloon::after {
+    content: "";
+    position: absolute;
+    left: 20px;
+    bottom: -8px;
+    border-width: 8px 8px 0;
+    border-style: solid;
+    border-color: #ffffff transparent transparent;
+}
+
+.guide-inline-balloon.is-below::after {
+    top: -8px;
+    bottom: auto;
+    border-width: 0 8px 8px;
+    border-color: transparent transparent #ffffff;
+}
+
+.guide-inline-balloon strong {
+    display: block;
+    margin-bottom: 4px;
+    color: var(--cml-primary-dark);
+}
+
+.guide-inline-balloon span {
+    display: block;
 }
 
 .metric-grid {

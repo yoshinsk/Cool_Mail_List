@@ -11,6 +11,7 @@
 
     const fields = Array.from(form.querySelectorAll('[data-guide-message]'));
     const popovers = new Map();
+    form.noValidate = true;
 
     function popoverFor(field) {
         if (!popovers.has(field)) {
@@ -46,6 +47,18 @@
         popoverFor(field).show();
     }
 
+    function firstInvalidField() {
+        return fields.find(function (field) {
+            return !field.checkValidity();
+        }) || null;
+    }
+
+    function guideInvalidField(field) {
+        showGuide(field);
+        field.focus({ preventScroll: true });
+        field.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+
     fields.forEach(function (field) {
         field.addEventListener('focus', function () {
             showGuide(field);
@@ -75,10 +88,18 @@
             return;
         }
         event.preventDefault();
-        showGuide(field);
-        field.focus({ preventScroll: true });
-        field.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        guideInvalidField(field);
     }, true);
+
+    form.addEventListener('submit', function (event) {
+        const field = firstInvalidField();
+        if (!field) {
+            return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        guideInvalidField(field);
+    });
 })();
 
 document.addEventListener('submit', function (event) {

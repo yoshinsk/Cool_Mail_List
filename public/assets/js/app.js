@@ -138,7 +138,16 @@
     }
 
     function guideMessage(field) {
-        return field.dataset.guideMessage || helpText(field) || fallbackMessage(field);
+        if (field.dataset.guideMessage) {
+            return field.dataset.guideMessage;
+        }
+        const help = helpText(field);
+        const fallback = fallbackMessage(field);
+        const hasDetailedFallback = Boolean(fallbackGuides[field.name || field.id || '']);
+        if (hasDetailedFallback && (!help || help.length < 12)) {
+            return fallback;
+        }
+        return help || fallback;
     }
 
     function clearHideTimer(field) {

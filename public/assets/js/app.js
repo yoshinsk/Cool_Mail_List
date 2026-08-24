@@ -13,6 +13,7 @@
     const submitButtons = Array.from(form.querySelectorAll('button[type="submit"], input[type="submit"]'));
     const popovers = new Map();
     const hideTimers = new Map();
+    let lockedField = null;
     form.noValidate = true;
 
     function popoverFor(field) {
@@ -39,6 +40,9 @@
 
     function hideGuideNow(field) {
         clearHideTimer(field);
+        if (lockedField === field) {
+            lockedField = null;
+        }
         const popover = popovers.get(field);
         if (popover) {
             popover.hide();
@@ -46,6 +50,9 @@
     }
 
     function scheduleHideGuide(field) {
+        if (lockedField === field) {
+            return;
+        }
         clearHideTimer(field);
         hideTimers.set(field, window.setTimeout(function () {
             hideTimers.delete(field);
@@ -77,6 +84,7 @@
     }
 
     function guideInvalidField(field) {
+        lockedField = field;
         showGuide(field);
         field.focus({ preventScroll: true });
         field.scrollIntoView({ block: 'center', behavior: 'smooth' });
@@ -84,6 +92,9 @@
 
     fields.forEach(function (field) {
         field.addEventListener('focus', function () {
+            if (lockedField !== field) {
+                lockedField = null;
+            }
             showGuide(field);
         });
         field.addEventListener('blur', function () {

@@ -12,6 +12,7 @@
     const fields = Array.from(form.querySelectorAll('[data-guide-message]'));
     const submitButtons = Array.from(form.querySelectorAll('button[type="submit"], input[type="submit"]'));
     const popovers = new Map();
+    const hideTimers = new Map();
     form.noValidate = true;
 
     function popoverFor(field) {
@@ -28,22 +29,43 @@
         return popovers.get(field);
     }
 
-    function hideGuide(field) {
+    function clearHideTimer(field) {
+        const timer = hideTimers.get(field);
+        if (timer) {
+            window.clearTimeout(timer);
+            hideTimers.delete(field);
+        }
+    }
+
+    function hideGuideNow(field) {
+        clearHideTimer(field);
         const popover = popovers.get(field);
         if (popover) {
             popover.hide();
         }
     }
 
+    function scheduleHideGuide(field) {
+        clearHideTimer(field);
+        hideTimers.set(field, window.setTimeout(function () {
+            hideTimers.delete(field);
+            const popover = popovers.get(field);
+            if (popover) {
+                popover.hide();
+            }
+        }, 120));
+    }
+
     function hideOtherGuides(activeField) {
         fields.forEach(function (field) {
             if (field !== activeField) {
-                hideGuide(field);
+                hideGuideNow(field);
             }
         });
     }
 
     function showGuide(field) {
+        clearHideTimer(field);
         hideOtherGuides(field);
         popoverFor(field).show();
     }
@@ -65,18 +87,16 @@
             showGuide(field);
         });
         field.addEventListener('blur', function () {
-            window.setTimeout(function () {
-                hideGuide(field);
-            }, 120);
+            scheduleHideGuide(field);
         });
         field.addEventListener('input', function () {
             if (field.checkValidity()) {
-                hideGuide(field);
+                hideGuideNow(field);
             }
         });
         field.addEventListener('change', function () {
             if (field.checkValidity()) {
-                hideGuide(field);
+                hideGuideNow(field);
             } else {
                 showGuide(field);
             }

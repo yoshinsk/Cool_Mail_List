@@ -218,6 +218,10 @@ function handle_recipients(): void
                  ON DUPLICATE KEY UPDATE name = VALUES(name), company = VALUES(company), tags = VALUES(tags), status = VALUES(status), updated_at = NOW()',
                 [$orgId, $email, trim((string)$_POST['name']), trim((string)$_POST['company']), trim((string)$_POST['tags']), (string)$_POST['status']]
             );
+            $recipient = Database::fetch('SELECT id FROM recipients WHERE organization_id = ? AND email = ? LIMIT 1', [$orgId, $email]);
+            if ($recipient) {
+                RecipientTagService::syncForRecipient((int)$recipient['id'], (string)$_POST['tags']);
+            }
             AuditLogger::log('recipient_saved', ['email' => $email, 'organization_id' => $orgId]);
             Session::flash('success', '宛先を保存しました。');
             redirect_route('recipients');
@@ -702,39 +706,61 @@ function handle_campaigns(): void
             Session::flash('error', 'テンプレートに {{unsubscribe_url}} が含まれていないため作成できません。');
             redirect_route('campaigns');
         }
-        Database::execute(
-            'INSERT INTO campaigns (organization_id, name, sender_identity_id, template_id, subject_override, scheduled_at, status, created_by, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, "draft", ?, NOW(), NOW())',
-            [
-                $orgId,
-                trim((string)$_POST['name']),
-                (int)$_POST['sender_identity_id'],
-                (int)$_POST['template_id'],
-                trim((string)$_POST['subject_override']) ?: null,
-                normalize_datetime((string)$_POST['scheduled_at']),
-                (int)current_user()['id'],
-            ]
-        );
-        AuditLogger::log('campaign_created', ['name' => $_POST['name'], 'organization_id' => $orgId]);
+        $segmentTags = RecipientTagService::normalizeList($_POST['segment_tags'] ?? []);
+        $pdo = Database::pdo();
+        $pdo->beginTransaction();
+        try {
+            Database::execute(
+                'INSERT INTO campaigns (organization_id, name, sender_identity_id, template_id, subject_override, scheduled_at, status, created_by, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, "draft", ?, NOW(), NOW())',
+                [
+                    $orgId,
+                    trim((string)$_POST['name']),
+                    (int)$_POST['sender_identity_id'],
+                    (int)$_POST['template_id'],
+                    trim((string)$_POST['subject_override']) ?: null,
+                    normalize_datetime((string)$_POST['scheduled_at']),
+                    (int)current_user()['id'],
+                ]
+            );
+            $campaignId = Database::lastInsertId();
+            RecipientTagService::storeCampaignFilter($campaignId, $segmentTags);
+            $pdo->commit();
+        } catch (Throwable $e) {
+            $pdo->rollBack();
+            throw $e;
+        }
+
+        AuditLogger::log('campaign_created', ['name' => $_POST['name'], 'organization_id' => $orgId, 'segment_tags' => $segmentTags]);
         Session::flash('success', 'キャンペーンを作成しました。');
         redirect_route('campaigns');
     }
 
+    $campaigns = Database::fetchAll(
+        'SELECT c.*, si.from_email, mt.name AS template_name,
+                (SELECT COUNT(*) FROM mail_queue mq WHERE mq.campaign_id = c.id) AS queue_count
+         FROM campaigns c
+         JOIN sender_identities si ON si.id = c.sender_identity_id
+         JOIN mail_templates mt ON mt.id = c.template_id
+         WHERE c.organization_id = ?
+         ORDER BY c.id DESC',
+        [$orgId]
+    );
+    $filters = RecipientTagService::filtersForCampaignIds(array_column($campaigns, 'id'));
+    foreach ($campaigns as &$campaign) {
+        $filter = $filters[(int)$campaign['id']] ?? ['tags' => [], 'tag_match' => 'any'];
+        $campaign['recipient_filter_label'] = RecipientTagService::describeFilter($filter);
+        $campaign['eligible_recipient_count'] = QueueService::matchingRecipientCount((int)$campaign['id']);
+    }
+    unset($campaign);
+
     render('campaigns', [
         'title' => 'キャンペーン',
         'active' => 'campaigns',
-        'campaigns' => Database::fetchAll(
-            'SELECT c.*, si.from_email, mt.name AS template_name,
-                    (SELECT COUNT(*) FROM mail_queue mq WHERE mq.campaign_id = c.id) AS queue_count
-             FROM campaigns c
-             JOIN sender_identities si ON si.id = c.sender_identity_id
-             JOIN mail_templates mt ON mt.id = c.template_id
-             WHERE c.organization_id = ?
-             ORDER BY c.id DESC',
-            [$orgId]
-        ),
+        'campaigns' => $campaigns,
         'senders' => Database::fetchAll('SELECT * FROM sender_identities WHERE organization_id = ? AND is_active = 1 ORDER BY id DESC', [$orgId]),
         'templates' => Database::fetchAll('SELECT * FROM mail_templates WHERE organization_id = ? ORDER BY id DESC', [$orgId]),
+        'availableTags' => RecipientTagService::allForOrganization($orgId),
     ]);
 }
 

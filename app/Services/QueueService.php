@@ -21,14 +21,7 @@ final class QueueService
             throw new RuntimeException('キャンペーンが見つかりません。');
         }
 
-        $recipients = Database::fetchAll(
-            'SELECT id FROM recipients
-             WHERE status = "active"
-             AND organization_id = ?
-             AND NOT EXISTS (SELECT 1 FROM unsubscribes u WHERE u.recipient_id = recipients.id)
-             ORDER BY id',
-            [(int)$campaign['organization_id']]
-        );
+        $recipients = self::eligibleRecipients($campaign);
 
         $created = 0;
         foreach ($recipients as $recipient) {
@@ -60,6 +53,24 @@ final class QueueService
         Database::execute('UPDATE campaigns SET status = "queued", updated_at = NOW() WHERE id = ?', [$campaignId]);
         AuditLogger::log('campaign_queued', ['campaign_id' => $campaignId, 'created' => $created]);
         return $created;
+    }
+
+    public static function matchingRecipientCount(int $campaignId): int
+    {
+        $campaign = Database::fetch(
+            'SELECT c.*, si.smtp_account_id
+             FROM campaigns c
+             JOIN sender_identities si ON si.id = c.sender_identity_id
+             WHERE c.id = ? AND c.organization_id = ?',
+            [$campaignId, OrganizationService::currentId()]
+        );
+        if (!$campaign) {
+            return 0;
+        }
+
+        [$sql, $params] = self::eligibleRecipientSql($campaign, 'COUNT(*) AS c', '');
+        $row = Database::fetch($sql, $params);
+        return (int)($row['c'] ?? 0);
     }
 
     public static function sendDue(?int $limit = null): array
@@ -119,6 +130,53 @@ final class QueueService
                   AND si.is_active = 1
                 ORDER BY mq.scheduled_at, mq.id
                 LIMIT ' . $limit;
+    }
+
+    private static function eligibleRecipients(array $campaign): array
+    {
+        [$sql, $params] = self::eligibleRecipientSql($campaign, 'id', 'ORDER BY id');
+        return Database::fetchAll($sql, $params);
+    }
+
+    private static function eligibleRecipientSql(array $campaign, string $select, string $orderBy): array
+    {
+        $params = [(int)$campaign['organization_id']];
+        $sql = 'SELECT ' . $select . '
+                FROM recipients
+                WHERE status = "active"
+                  AND organization_id = ?
+                  AND NOT EXISTS (SELECT 1 FROM unsubscribes u WHERE u.recipient_id = recipients.id)';
+        $filter = RecipientTagService::campaignFilter((int)$campaign['id']);
+        $tags = $filter['tags'] ?? [];
+
+        if ($tags !== []) {
+            $placeholders = implode(',', array_fill(0, count($tags), '?'));
+            if (($filter['tag_match'] ?? 'any') === 'all') {
+                $sql .= ' AND recipients.id IN (
+                            SELECT rt.recipient_id
+                            FROM recipient_tags rt
+                            JOIN tags t ON t.id = rt.tag_id
+                            WHERE t.name IN (' . $placeholders . ')
+                            GROUP BY rt.recipient_id
+                            HAVING COUNT(DISTINCT t.name) = ?
+                          )';
+                $params = array_merge($params, $tags, [count($tags)]);
+            } else {
+                $sql .= ' AND EXISTS (
+                            SELECT 1
+                            FROM recipient_tags rt
+                            JOIN tags t ON t.id = rt.tag_id
+                            WHERE rt.recipient_id = recipients.id
+                              AND t.name IN (' . $placeholders . ')
+                          )';
+                array_push($params, ...$tags);
+            }
+        }
+
+        if ($orderBy !== '') {
+            $sql .= ' ' . $orderBy;
+        }
+        return [$sql, $params];
     }
 
     private static function markSent(int $queueId, array $sendResult): void

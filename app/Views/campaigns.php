@@ -54,14 +54,14 @@ $canQueueCampaign = route_allowed_for_user('queue_campaign');
                         <span class="guide-number">4</span>
                         <div>
                             <h3>キャンペーンを作成する</h3>
-                            <p>この画面でキャンペーン名、送信者、テンプレート、予約日時を選んで「作成」を押します。この時点ではまだ宛先別キューは作成されず、メールも送信されません。件名上書きは今回だけ件名を変えたい場合に使います。</p>
+                            <p>この画面でキャンペーン名、送信者、テンプレート、配信先タグ、予約日時を選んで「作成」を押します。この時点ではまだ宛先別キューは作成されず、メールも送信されません。件名上書きは今回だけ件名を変えたい場合に使います。</p>
                         </div>
                     </div>
                     <div class="guide-step">
                         <span class="guide-number">5</span>
                         <div>
                             <h3>キュー生成で送信対象を確定する</h3>
-                            <p>キャンペーン一覧の「キュー生成」を押すと、その時点のactive宛先から宛先別の送信キューを作ります。キュー数が0のキャンペーンだけ生成できます。送信対象を変えたい場合は、キュー生成前に宛先やテンプレートを確認してください。</p>
+                            <p>キャンペーン一覧の「キュー生成」を押すと、その時点のactive宛先から宛先別の送信キューを作ります。タグを選んだキャンペーンは、そのタグのいずれかを持つ宛先だけが対象です。送信対象を変えたい場合は、キュー生成前に宛先やテンプレートを確認してください。</p>
                         </div>
                     </div>
                     <div class="guide-step">
@@ -125,6 +125,30 @@ $canQueueCampaign = route_allowed_for_user('queue_campaign');
             <input class="form-control" id="subject_override" name="subject_override" placeholder="任意" data-guide-title="件名上書き" data-guide-message="空欄ならテンプレートの件名を使います。今回の配信だけ件名を変えたい場合に入力してください。">
             <div class="form-help">空欄ならテンプレートの件名を使います。今回だけ件名を変えたい時に入力します。</div>
         </div>
+        <div class="col-md-6">
+            <div class="form-label">配信先タグ</div>
+            <?php if (!empty($availableTags)): ?>
+                <div class="tag-check-grid" role="group" aria-label="配信先タグ">
+                    <?php foreach ($availableTags as $tag): ?>
+                        <label class="tag-check">
+                            <input
+                                class="form-check-input"
+                                type="checkbox"
+                                name="segment_tags[]"
+                                value="<?= h($tag['name']) ?>"
+                                data-guide-title="配信先タグ"
+                                data-guide-message="選択したタグのいずれかを持つactive宛先だけに配信します。未選択ならactive宛先全員が対象です。"
+                            >
+                            <span><?= h($tag['name']) ?></span>
+                            <small>active <?= h((string)$tag['active_count']) ?>件 / 全<?= h((string)$tag['total_count']) ?>件</small>
+                        </label>
+                    <?php endforeach; ?>
+                </div>
+            <?php else: ?>
+                <div class="empty-inline-help">タグ付き宛先がまだありません。タグを使わない場合は、active宛先全員が対象になります。</div>
+            <?php endif; ?>
+            <div class="form-help">複数選択できます。例: <code>野田名刺</code> を選ぶと、そのタグが付いたactive宛先だけをキュー生成します。</div>
+        </div>
         <div class="col-md-4">
             <label class="form-label" for="scheduled_at">予約日時</label>
             <input class="form-control" id="scheduled_at" name="scheduled_at" type="datetime-local" value="<?= h(date('Y-m-d\TH:i')) ?>" required data-guide-title="予約日時" data-guide-message="この日時以降にcronが順番に送信します。すぐ送る場合は現在時刻のままで作成し、一覧からキュー生成してください。">
@@ -139,7 +163,7 @@ $canQueueCampaign = route_allowed_for_user('queue_campaign');
     <p class="section-help">キュー生成後は宛先ごとの送信予定が作成されます。キュー数が0の間だけキュー生成できます。</p>
     <div class="table-responsive">
         <table class="table table-hover align-middle">
-            <thead><tr><th>ID</th><th>名称</th><th>From</th><th>テンプレート</th><th>状態</th><th>予約日時</th><th>キュー</th><th>操作</th></tr></thead>
+            <thead><tr><th>ID</th><th>名称</th><th>From</th><th>テンプレート</th><th>配信先</th><th>状態</th><th>予約日時</th><th>キュー</th><th>操作</th></tr></thead>
             <tbody>
             <?php foreach ($campaigns as $campaign): ?>
                 <tr>
@@ -147,6 +171,10 @@ $canQueueCampaign = route_allowed_for_user('queue_campaign');
                     <td><?= h($campaign['name']) ?></td>
                     <td><?= h($campaign['from_email']) ?></td>
                     <td><?= h($campaign['template_name']) ?></td>
+                    <td>
+                        <?= h($campaign['recipient_filter_label']) ?><br>
+                        <span class="text-muted small">現在の対象目安: <?= h((string)$campaign['eligible_recipient_count']) ?>件</span>
+                    </td>
                     <td><span class="status-badge"><?= h($campaign['status']) ?></span></td>
                     <td><?= h($campaign['scheduled_at']) ?></td>
                     <td><?= h((string)$campaign['queue_count']) ?></td>

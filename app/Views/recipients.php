@@ -27,7 +27,7 @@
         <div class="col-md-2">
             <label class="form-label" for="recipient_tags">タグ</label>
             <input class="form-control" id="recipient_tags" name="tags" placeholder="既存顧客,セミナー">
-            <div class="form-help">分類用のメモです。検索しやすい短い語句を入れます。</div>
+            <div class="form-help">分類用のメモです。キャンペーン作成時に配信先タグとして選択できます。</div>
         </div>
         <div class="col-md-2">
             <label class="form-label" for="recipient_status">状態</label>

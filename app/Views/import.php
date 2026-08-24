@@ -6,16 +6,25 @@
 ?>
 <section class="panel">
     <div class="panel-title">ファイル取込</div>
-    <p class="section-help">宛先をまとめて登録します。1列目は必ずメールアドレスにしてください。2列目以降は、氏名、会社名、タグの順に読み込みます。</p>
+    <p class="section-help">宛先をまとめて登録します。ヘッダー付きCSV/TSVなら <code>メール</code>、<code>氏名</code>、<code>会社</code>、<code>タグ</code>、<code>状態</code> の列名で読み込みます。ヘッダーなしの場合は、メール、氏名、会社名、タグの順に読み込みます。</p>
     <div class="help-grid mb-3">
         <div class="help-card">
-            <strong>CSV例</strong>
-            <pre>email@example.com,山田 太郎,サンプル株式会社,既存顧客
+            <strong>推奨CSV例</strong>
+            <pre>メール,氏名,会社,タグ
+email@example.com,山田 太郎,サンプル株式会社,野田名刺
 user@example.net,佐藤 花子,Example Inc,セミナー</pre>
         </div>
         <div class="help-card">
-            <strong>TSV例</strong>
-            <pre>email@example.com	山田 太郎	サンプル株式会社	既存顧客</pre>
+            <strong>姓/名分割CSV例</strong>
+            <pre>メール,姓,名,会社,タグ
+email@example.com,山田,太郎,サンプル株式会社,野田名刺</pre>
+            <span>姓と名は半角スペースで結合して氏名に保存します。</span>
+        </div>
+        <div class="help-card">
+            <strong>一覧形式CSV例</strong>
+            <pre>ID,メール,氏名,会社,タグ,状態,更新日
+5030,email@example.com,山田 太郎,サンプル株式会社,野田名刺,active,2026-08-24 12:27:16</pre>
+            <span>IDと更新日は読み飛ばします。</span>
         </div>
         <div class="help-card">
             <strong>1行1メール例</strong>

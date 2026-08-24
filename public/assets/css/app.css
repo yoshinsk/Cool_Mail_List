@@ -166,34 +166,45 @@ body {
     font-weight: 700;
 }
 
-.campaign-guide {
-    border-color: #93c5fd;
-    background: #eff6ff;
+.campaign-guide-entry {
+    border-color: #bfdbfe;
+    background: #f8fbff;
 }
 
-.campaign-guide-header {
+.campaign-guide-entry-text,
+.panel-title-row {
     display: flex;
     justify-content: space-between;
     gap: 16px;
-    align-items: flex-start;
+    align-items: center;
 }
 
-.guide-label {
-    display: inline-flex;
-    align-items: center;
-    min-height: 28px;
-    padding: 3px 10px;
-    border-radius: 999px;
-    background: #dbeafe;
-    color: var(--cml-primary-dark);
-    font-size: 0.82rem;
-    font-weight: 700;
-    white-space: nowrap;
+.campaign-guide-entry .panel-title,
+.panel-title-row .panel-title {
+    margin-bottom: 4px;
+}
+
+.campaign-guide-entry .section-help,
+.panel-title-row .section-help {
+    max-width: 720px;
+}
+
+.campaign-guide-modal .modal-header {
+    align-items: flex-start;
+    gap: 16px;
+}
+
+.modal-guide-intro {
+    color: var(--cml-muted);
+    font-size: 0.9rem;
+    line-height: 1.6;
+    margin-top: 6px;
+    max-width: 900px;
 }
 
 .guide-steps {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
     gap: 12px;
 }
 
@@ -202,7 +213,7 @@ body {
     grid-template-columns: 34px 1fr;
     gap: 10px;
     min-height: 100%;
-    padding: 13px;
+    padding: 12px;
     border: 1px solid #bfdbfe;
     border-radius: 8px;
     background: #ffffff;
@@ -221,17 +232,17 @@ body {
     line-height: 1;
 }
 
-.guide-step h2 {
+.guide-step h3 {
     margin: 2px 0 6px;
-    font-size: 0.98rem;
+    font-size: 0.94rem;
     font-weight: 700;
 }
 
 .guide-step p {
     margin: 0;
     color: #334155;
-    font-size: 0.9rem;
-    line-height: 1.65;
+    font-size: 0.86rem;
+    line-height: 1.6;
 }
 
 .guide-checklist {
@@ -259,7 +270,26 @@ body {
 
 .guide-checklist span {
     color: #475569;
+    font-size: 0.86rem;
+    line-height: 1.55;
+}
+
+.campaign-submit-column {
+    display: flex;
+    align-items: flex-end;
+}
+
+.guide-balloon {
+    --bs-popover-max-width: 330px;
+    --bs-popover-border-color: #93c5fd;
+    --bs-popover-header-bg: #eff6ff;
+    --bs-popover-header-color: var(--cml-primary-dark);
+    --bs-popover-body-color: #334155;
+    --bs-popover-box-shadow: 0 16px 36px rgba(15, 23, 42, 0.14);
     font-size: 0.88rem;
+}
+
+.guide-balloon .popover-body {
     line-height: 1.55;
 }
 
@@ -416,14 +446,12 @@ a:focus-visible {
         width: 100%;
     }
 
-    .campaign-guide-header {
+    .campaign-guide-entry-text,
+    .panel-title-row {
         display: grid;
         gap: 10px;
     }
 
-    .guide-label {
-        width: fit-content;
-    }
 }
 
 @media (prefers-reduced-motion: reduce) {

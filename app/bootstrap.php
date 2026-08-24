@@ -101,7 +101,13 @@ function base_url(string $path = ''): string
 
 function asset_url(string $path): string
 {
-    return base_url('public/assets/' . ltrim($path, '/'));
+    $assetPath = 'public/assets/' . ltrim($path, '/');
+    $url = base_url($assetPath);
+    $filePath = dirname(__DIR__) . '/' . $assetPath;
+    if (is_file($filePath)) {
+        return $url . '?v=' . filemtime($filePath);
+    }
+    return $url;
 }
 
 function redirect_to(string $url): void

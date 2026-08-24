@@ -154,6 +154,18 @@ body {
     color: #334155;
 }
 
+.sender-edit-panel {
+    background: #f8fafc;
+    border: 1px solid var(--cml-border);
+    border-radius: 8px;
+    padding: 12px;
+}
+
+.sender-edit-panel summary {
+    cursor: pointer;
+    font-weight: 700;
+}
+
 .metric-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));

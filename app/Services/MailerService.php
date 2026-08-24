@@ -11,6 +11,60 @@ use PHPMailer\PHPMailer\PHPMailer;
 
 final class MailerService
 {
+    public static function checkSenderSmtp(int $senderId): array
+    {
+        $sender = Database::fetch(
+            'SELECT si.id AS sender_identity_id, si.from_email,
+                    sa.smtp_host, sa.smtp_port, sa.encryption, sa.auth_username, sa.auth_password_ciphertext
+             FROM sender_identities si
+             JOIN smtp_accounts sa ON sa.id = si.smtp_account_id
+             WHERE si.id = ? AND si.organization_id = ?',
+            [$senderId, OrganizationService::currentId()]
+        );
+        if (!$sender) {
+            throw new RuntimeException('送信者/SMTP設定が見つかりません。');
+        }
+
+        $result = [
+            'ok' => false,
+            'sender_id' => (int)$sender['sender_identity_id'],
+            'from_email' => (string)$sender['from_email'],
+            'smtp_host' => (string)$sender['smtp_host'],
+            'smtp_port' => (int)$sender['smtp_port'],
+            'encryption' => (string)$sender['encryption'],
+            'auth_user_set' => (string)($sender['auth_username'] ?? '') !== '',
+            'message' => '',
+        ];
+
+        if ((int)$sender['smtp_port'] === 465 && (string)$sender['encryption'] === 'tls') {
+            $result['message'] = 'SMTPポート465では暗号化にSSLを選択してください。TLS(STARTTLS)を使う場合は通常587番です。';
+            return $result;
+        }
+
+        try {
+            $mail = self::buildMailer($sender);
+            $mail->Timeout = 15;
+            $mail->Timelimit = 15;
+            $connected = $mail->smtpConnect();
+            if ($connected && $mail->getSMTPInstance()) {
+                $mail->getSMTPInstance()->quit();
+                $mail->getSMTPInstance()->close();
+            }
+
+            $result['ok'] = $connected;
+            $result['message'] = $connected ? 'SMTP接続と認証に成功しました。' : ($mail->ErrorInfo ?: 'SMTP接続に失敗しました。');
+        } catch (Throwable $e) {
+            $result['message'] = $e->getMessage();
+        }
+
+        AuditLogger::log('sender_smtp_checked', [
+            'sender_identity_id' => $senderId,
+            'ok' => $result['ok'],
+            'smtp_host' => $result['smtp_host'],
+        ]);
+        return $result;
+    }
+
     public static function sendQueueItem(array $item): array
     {
         $mail = self::buildMailer($item);

@@ -258,52 +258,245 @@ function handle_senders(): void
 {
     Auth::requireRole(['system_admin', 'delivery_admin']);
     $orgId = OrganizationService::currentId();
+    $smtpCheckResult = null;
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        $passwordCipher = $_POST['smtp_password'] !== '' ? CryptoService::encrypt((string)$_POST['smtp_password']) : null;
-        Database::execute(
-            'INSERT INTO smtp_accounts
-                (organization_id, name, smtp_host, smtp_port, encryption, auth_username, auth_password_ciphertext, per_minute_limit, daily_limit, is_active, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW(), NOW())',
-            [
-                $orgId,
-                trim((string)$_POST['account_name']),
-                trim((string)$_POST['smtp_host']),
-                (int)$_POST['smtp_port'],
-                (string)$_POST['encryption'],
-                trim((string)$_POST['auth_username']),
-                $passwordCipher,
-                max(1, (int)$_POST['per_minute_limit']),
-                max(1, (int)$_POST['daily_limit']),
-            ]
-        );
-        $smtpId = Database::lastInsertId();
-        Database::execute(
-            'INSERT INTO sender_identities
-                (organization_id, smtp_account_id, from_name, from_email, reply_to, dkim_policy, is_active, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, 1, NOW(), NOW())',
-            [
-                $orgId,
-                $smtpId,
-                trim((string)$_POST['from_name']),
-                mb_strtolower(trim((string)$_POST['from_email'])),
-                mb_strtolower(trim((string)$_POST['reply_to'])),
-                (string)$_POST['dkim_policy'],
-            ]
-        );
-        AuditLogger::log('sender_identity_created', ['from_email' => $_POST['from_email'], 'organization_id' => $orgId]);
-        Session::flash('success', '送信者/SMTP設定を保存しました。');
-        redirect_route('senders');
+        $action = (string)($_POST['action'] ?? 'create');
+        try {
+            if ($action === 'create') {
+                sender_create($orgId);
+                Session::flash('success', '送信者/SMTP設定を保存しました。');
+                redirect_route('senders');
+            }
+            if ($action === 'update') {
+                sender_update($orgId, (int)($_POST['sender_id'] ?? 0));
+                Session::flash('success', '送信者/SMTP設定を更新しました。');
+                redirect_route('senders');
+            }
+            if ($action === 'delete') {
+                $message = sender_delete($orgId, (int)($_POST['sender_id'] ?? 0));
+                Session::flash('success', $message);
+                redirect_route('senders');
+            }
+            if ($action === 'check_smtp') {
+                $smtpCheckResult = MailerService::checkSenderSmtp((int)($_POST['sender_id'] ?? 0));
+            } else {
+                Session::flash('error', '不明な操作です。');
+                redirect_route('senders');
+            }
+        } catch (Throwable $e) {
+            Session::flash('error', $e->getMessage());
+            if ($action !== 'check_smtp') {
+                redirect_route('senders');
+            }
+        }
     }
 
     $senders = Database::fetchAll(
-        'SELECT si.*, sa.name AS account_name, sa.smtp_host, sa.smtp_port, sa.encryption, sa.per_minute_limit, sa.daily_limit
+        'SELECT si.*, sa.id AS smtp_account_id, sa.name AS account_name, sa.smtp_host, sa.smtp_port, sa.encryption,
+                sa.auth_username, sa.auth_password_ciphertext, sa.per_minute_limit, sa.daily_limit, sa.is_active AS smtp_is_active
          FROM sender_identities si
          JOIN smtp_accounts sa ON sa.id = si.smtp_account_id
          WHERE si.organization_id = ?
          ORDER BY si.id DESC',
         [$orgId]
     );
-    render('senders', ['title' => '送信者/SMTP管理', 'active' => 'senders', 'senders' => $senders]);
+    render('senders', ['title' => '送信者/SMTP管理', 'active' => 'senders', 'senders' => $senders, 'smtpCheckResult' => $smtpCheckResult]);
+}
+
+function sender_create(int $orgId): void
+{
+    $input = sender_form_input();
+    assert_sender_email_unique($orgId, $input['from_email']);
+    $passwordCipher = $input['smtp_password'] !== '' ? CryptoService::encrypt($input['smtp_password']) : null;
+
+    Database::execute(
+        'INSERT INTO smtp_accounts
+            (organization_id, name, smtp_host, smtp_port, encryption, auth_username, auth_password_ciphertext, per_minute_limit, daily_limit, is_active, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW(), NOW())',
+        [
+            $orgId,
+            $input['account_name'],
+            $input['smtp_host'],
+            $input['smtp_port'],
+            $input['encryption'],
+            $input['auth_username'],
+            $passwordCipher,
+            $input['per_minute_limit'],
+            $input['daily_limit'],
+        ]
+    );
+    $smtpId = Database::lastInsertId();
+    Database::execute(
+        'INSERT INTO sender_identities
+            (organization_id, smtp_account_id, from_name, from_email, reply_to, dkim_policy, is_active, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, 1, NOW(), NOW())',
+        [$orgId, $smtpId, $input['from_name'], $input['from_email'], $input['reply_to'], $input['dkim_policy']]
+    );
+    AuditLogger::log('sender_identity_created', ['from_email' => $input['from_email'], 'organization_id' => $orgId]);
+}
+
+function sender_update(int $orgId, int $senderId): void
+{
+    $sender = sender_with_smtp($orgId, $senderId);
+    $input = sender_form_input();
+    $isActive = (int)($_POST['is_active'] ?? 1) === 1 ? 1 : 0;
+    assert_sender_email_unique($orgId, $input['from_email'], $senderId);
+
+    $pdo = Database::pdo();
+    $pdo->beginTransaction();
+    try {
+        $smtpParams = [
+            $input['account_name'],
+            $input['smtp_host'],
+            $input['smtp_port'],
+            $input['encryption'],
+            $input['auth_username'],
+            $input['per_minute_limit'],
+            $input['daily_limit'],
+            $isActive,
+        ];
+        $passwordSql = '';
+        if ($input['smtp_password'] !== '') {
+            $passwordSql = ', auth_password_ciphertext = ?';
+            $smtpParams[] = CryptoService::encrypt($input['smtp_password']);
+        }
+        $smtpParams[] = (int)$sender['smtp_account_id'];
+        $smtpParams[] = $orgId;
+        Database::execute(
+            'UPDATE smtp_accounts
+             SET name = ?, smtp_host = ?, smtp_port = ?, encryption = ?, auth_username = ?, per_minute_limit = ?, daily_limit = ?, is_active = ?, updated_at = NOW()' . $passwordSql . '
+             WHERE id = ? AND organization_id = ?',
+            $smtpParams
+        );
+        Database::execute(
+            'UPDATE sender_identities
+             SET from_name = ?, from_email = ?, reply_to = ?, dkim_policy = ?, is_active = ?, updated_at = NOW()
+             WHERE id = ? AND organization_id = ?',
+            [$input['from_name'], $input['from_email'], $input['reply_to'], $input['dkim_policy'], $isActive, $senderId, $orgId]
+        );
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
+
+    AuditLogger::log('sender_identity_updated', ['sender_identity_id' => $senderId, 'from_email' => $input['from_email']]);
+}
+
+function sender_delete(int $orgId, int $senderId): string
+{
+    $sender = sender_with_smtp($orgId, $senderId);
+    $usage = sender_usage_counts($senderId, (int)$sender['smtp_account_id']);
+    $pdo = Database::pdo();
+    $pdo->beginTransaction();
+    try {
+        if (($usage['campaigns'] + $usage['queue']) > 0) {
+            Database::execute('UPDATE sender_identities SET is_active = 0, updated_at = NOW() WHERE id = ? AND organization_id = ?', [$senderId, $orgId]);
+            $otherActive = Database::fetch('SELECT COUNT(*) AS c FROM sender_identities WHERE smtp_account_id = ? AND id <> ? AND is_active = 1', [(int)$sender['smtp_account_id'], $senderId]);
+            if ((int)($otherActive['c'] ?? 0) === 0) {
+                Database::execute('UPDATE smtp_accounts SET is_active = 0, updated_at = NOW() WHERE id = ? AND organization_id = ?', [(int)$sender['smtp_account_id'], $orgId]);
+            }
+            $pdo->commit();
+            AuditLogger::log('sender_identity_disabled', ['sender_identity_id' => $senderId, 'usage' => $usage]);
+            return '使用履歴があるため、送信者/SMTP設定を無効化しました。';
+        }
+
+        Database::execute('DELETE FROM sender_identities WHERE id = ? AND organization_id = ?', [$senderId, $orgId]);
+        $smtpUsers = Database::fetch('SELECT COUNT(*) AS c FROM sender_identities WHERE smtp_account_id = ?', [(int)$sender['smtp_account_id']]);
+        if ((int)($smtpUsers['c'] ?? 0) === 0) {
+            Database::execute('DELETE FROM smtp_accounts WHERE id = ? AND organization_id = ?', [(int)$sender['smtp_account_id'], $orgId]);
+        }
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
+
+    AuditLogger::log('sender_identity_deleted', ['sender_identity_id' => $senderId, 'from_email' => $sender['from_email']]);
+    return '送信者/SMTP設定を削除しました。';
+}
+
+function sender_form_input(): array
+{
+    $fromEmail = mb_strtolower(trim((string)($_POST['from_email'] ?? '')));
+    $replyTo = mb_strtolower(trim((string)($_POST['reply_to'] ?? '')));
+    if (!filter_var($fromEmail, FILTER_VALIDATE_EMAIL)) {
+        throw new RuntimeException('Fromメールの形式が不正です。');
+    }
+    if ($replyTo !== '' && !filter_var($replyTo, FILTER_VALIDATE_EMAIL)) {
+        throw new RuntimeException('Reply-Toの形式が不正です。');
+    }
+
+    $accountName = trim((string)($_POST['account_name'] ?? ''));
+    $fromName = trim((string)($_POST['from_name'] ?? ''));
+    $smtpHost = trim((string)($_POST['smtp_host'] ?? ''));
+    if ($accountName === '' || $fromName === '' || $smtpHost === '') {
+        throw new RuntimeException('SMTP設定名、From表示名、SMTPホストは必須です。');
+    }
+
+    $encryption = (string)($_POST['encryption'] ?? 'tls');
+    if (!in_array($encryption, ['tls', 'ssl', ''], true)) {
+        $encryption = 'tls';
+    }
+    $smtpPort = min(65535, max(1, (int)($_POST['smtp_port'] ?? 587)));
+    if ($smtpPort === 465 && $encryption === 'tls') {
+        throw new RuntimeException('SMTPポート465を使う場合は、暗号化にSSLを選択してください。TLS(STARTTLS)を使う場合は通常587番です。');
+    }
+    $dkimPolicy = (string)($_POST['dkim_policy'] ?? 'recommended');
+    if (!in_array($dkimPolicy, ['recommended', 'required', 'none'], true)) {
+        $dkimPolicy = 'recommended';
+    }
+
+    return [
+        'account_name' => $accountName,
+        'from_name' => $fromName,
+        'from_email' => $fromEmail,
+        'reply_to' => $replyTo,
+        'smtp_host' => $smtpHost,
+        'smtp_port' => $smtpPort,
+        'encryption' => $encryption,
+        'auth_username' => trim((string)($_POST['auth_username'] ?? '')),
+        'smtp_password' => trim((string)($_POST['smtp_password'] ?? '')),
+        'per_minute_limit' => max(1, (int)($_POST['per_minute_limit'] ?? 5)),
+        'daily_limit' => max(1, (int)($_POST['daily_limit'] ?? 1000)),
+        'dkim_policy' => $dkimPolicy,
+    ];
+}
+
+function sender_with_smtp(int $orgId, int $senderId): array
+{
+    $sender = Database::fetch(
+        'SELECT si.*, sa.id AS smtp_account_id
+         FROM sender_identities si
+         JOIN smtp_accounts sa ON sa.id = si.smtp_account_id
+         WHERE si.id = ? AND si.organization_id = ? LIMIT 1',
+        [$senderId, $orgId]
+    );
+    if (!$sender) {
+        throw new RuntimeException('送信者/SMTP設定が見つかりません。');
+    }
+    return $sender;
+}
+
+function sender_usage_counts(int $senderId, int $smtpId): array
+{
+    $campaigns = Database::fetch('SELECT COUNT(*) AS c FROM campaigns WHERE sender_identity_id = ?', [$senderId]);
+    $queue = Database::fetch('SELECT COUNT(*) AS c FROM mail_queue WHERE sender_identity_id = ? OR smtp_account_id = ?', [$senderId, $smtpId]);
+    return ['campaigns' => (int)($campaigns['c'] ?? 0), 'queue' => (int)($queue['c'] ?? 0)];
+}
+
+function assert_sender_email_unique(int $orgId, string $fromEmail, ?int $exceptSenderId = null): void
+{
+    $params = [$orgId, $fromEmail];
+    $sql = 'SELECT id FROM sender_identities WHERE organization_id = ? AND from_email = ?';
+    if ($exceptSenderId !== null) {
+        $sql .= ' AND id <> ?';
+        $params[] = $exceptSenderId;
+    }
+    $sql .= ' LIMIT 1';
+    if (Database::fetch($sql, $params)) {
+        throw new RuntimeException('同じFromメールの送信者が既に登録されています。');
+    }
 }
 
 function handle_dns_checks(): void

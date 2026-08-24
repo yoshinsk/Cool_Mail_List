@@ -23,6 +23,29 @@
     balloon.append(balloonTitle, balloonBody);
     document.body.appendChild(balloon);
 
+    const fallbackTitles = {
+        account_name: 'SMTP設定名',
+        from_name: 'From表示名',
+        from_email: 'Fromメール',
+        reply_to: 'Reply-To',
+        smtp_host: 'SMTPホスト',
+        smtp_port: 'SMTPポート',
+        encryption: '暗号化',
+        auth_username: 'SMTP認証ID',
+        smtp_password: 'SMTPパスワード',
+        per_minute_limit: '分上限',
+        daily_limit: '日上限',
+        dkim_policy: 'DKIM方針',
+        is_active: '状態',
+        organization_id: '所属組織',
+        role: '権限ロール',
+        status: '利用状態',
+        sender_identity_id: '送信者/SMTP',
+        template_id: 'テンプレート',
+        test_to: 'テスト送信先',
+        result_id: 'AI生成結果'
+    };
+
     const fallbackGuides = {
         action: 'このフォームで実行する処理を指定します。',
         account_name: 'SMTP設定を管理画面で見分けるための名前です。複数の送信経路を使う場合は用途が分かる名前にしてください。',
@@ -97,7 +120,7 @@
     }
 
     function guideTitle(field) {
-        return field.dataset.guideTitle || labelText(field) || field.getAttribute('placeholder') || field.name || '入力項目';
+        return field.dataset.guideTitle || labelText(field) || fallbackTitles[field.name] || field.getAttribute('placeholder') || field.name || '入力項目';
     }
 
     function fallbackMessage(field) {

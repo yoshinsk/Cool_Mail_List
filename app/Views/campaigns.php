@@ -5,6 +5,65 @@
  */
 $canQueueCampaign = route_allowed_for_user('queue_campaign');
 ?>
+<section class="panel campaign-guide">
+    <div class="campaign-guide-header">
+        <div>
+            <div class="panel-title">送信手順ガイド</div>
+            <p class="section-help">本配信は「キャンペーン作成」だけでは始まりません。送信者、テンプレート、宛先を確認した上で「キュー生成」を実行し、予約日時以降にcronが順番に送信します。</p>
+        </div>
+        <span class="guide-label">本配信前に上から確認</span>
+    </div>
+    <div class="guide-steps">
+        <div class="guide-step">
+            <span class="guide-number">1</span>
+            <div>
+                <h2>宛先を準備する</h2>
+                <p><a href="<?= h(route_url('recipients')) ?>">宛先管理</a> または <a href="<?= h(route_url('import')) ?>">インポート</a> で配信先を登録します。配信対象になるのは状態が <strong>active</strong> の宛先だけです。購読停止、バウンス停止、確認待ちの宛先には送りません。</p>
+            </div>
+        </div>
+        <div class="guide-step">
+            <span class="guide-number">2</span>
+            <div>
+                <h2>送信者/SMTPを確認する</h2>
+                <p><a href="<?= h(route_url('senders')) ?>">送信者/SMTP管理</a> で送信者を登録し、<strong>SMTPチェック</strong> が成功することを確認します。一般的には587番はTLS、465番はSSLです。続けて <a href="<?= h(route_url('dns_checks')) ?>">DNS診断</a> でSPF、DKIM、DMARC、PTRを確認します。</p>
+            </div>
+        </div>
+        <div class="guide-step">
+            <span class="guide-number">3</span>
+            <div>
+                <h2>テンプレートを用意する</h2>
+                <p><a href="<?= h(route_url('templates')) ?>">テンプレート管理</a> で件名と本文を作成します。本文には必ず <code>{{unsubscribe_url}}</code> を入れてください。差し込みは <code>{{name}}</code>、<code>{{company}}</code>、<code>{{email}}</code> が使えます。本配信前にテスト送信で表示を確認します。</p>
+            </div>
+        </div>
+        <div class="guide-step">
+            <span class="guide-number">4</span>
+            <div>
+                <h2>キャンペーンを作成する</h2>
+                <p>この画面でキャンペーン名、送信者、テンプレート、予約日時を選んで「作成」を押します。この時点ではまだ宛先別キューは作成されず、メールも送信されません。件名上書きは今回だけ件名を変えたい場合に使います。</p>
+            </div>
+        </div>
+        <div class="guide-step">
+            <span class="guide-number">5</span>
+            <div>
+                <h2>キュー生成で送信対象を確定する</h2>
+                <p>キャンペーン一覧の「キュー生成」を押すと、その時点のactive宛先から宛先別の送信キューを作ります。キュー数が0のキャンペーンだけ生成できます。送信対象を変えたい場合は、キュー生成前に宛先やテンプレートを確認してください。</p>
+            </div>
+        </div>
+        <div class="guide-step">
+            <span class="guide-number">6</span>
+            <div>
+                <h2>送信状況を確認する</h2>
+                <p>予約日時を過ぎるとcronが毎分 <code>send_queue.php</code> を実行し、設定件数ずつ送信します。進行状況は <a href="<?= h(route_url('queue')) ?>">配信キュー</a>、到達後の停止は <a href="<?= h(route_url('bounces')) ?>">バウンス管理</a> と <a href="<?= h(route_url('unsubscribes')) ?>">購読停止一覧</a> で確認します。</p>
+            </div>
+        </div>
+    </div>
+    <div class="guide-checklist">
+        <div><strong>送信前チェック</strong><span>SMTPチェック成功、DNS診断確認、テスト送信確認、本文内の購読停止URL確認。</span></div>
+        <div><strong>すぐ送る場合</strong><span>予約日時を現在時刻のまま作成し、キュー生成後、次回cron実行から送信されます。</span></div>
+        <div><strong>送信を止めたい場合</strong><span>キュー生成前なら作成し直し、キュー生成後は配信キューとキャンペーン状態を確認してください。</span></div>
+    </div>
+</section>
+
 <section class="panel">
     <div class="panel-title">キャンペーン作成</div>
     <p class="section-help">送信者、テンプレート、予約日時を組み合わせて配信予定を作ります。作成直後はまだキュー化されず、一覧の「キュー生成」で宛先別の送信予定を作ります。</p>

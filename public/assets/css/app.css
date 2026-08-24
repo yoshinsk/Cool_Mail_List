@@ -166,6 +166,103 @@ body {
     font-weight: 700;
 }
 
+.campaign-guide {
+    border-color: #93c5fd;
+    background: #eff6ff;
+}
+
+.campaign-guide-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: flex-start;
+}
+
+.guide-label {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: #dbeafe;
+    color: var(--cml-primary-dark);
+    font-size: 0.82rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.guide-steps {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 12px;
+}
+
+.guide-step {
+    display: grid;
+    grid-template-columns: 34px 1fr;
+    gap: 10px;
+    min-height: 100%;
+    padding: 13px;
+    border: 1px solid #bfdbfe;
+    border-radius: 8px;
+    background: #ffffff;
+}
+
+.guide-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: var(--cml-primary);
+    color: #ffffff;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.guide-step h2 {
+    margin: 2px 0 6px;
+    font-size: 0.98rem;
+    font-weight: 700;
+}
+
+.guide-step p {
+    margin: 0;
+    color: #334155;
+    font-size: 0.9rem;
+    line-height: 1.65;
+}
+
+.guide-checklist {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.guide-checklist div {
+    border-left: 4px solid var(--cml-accent);
+    border-radius: 6px;
+    background: #ffffff;
+    padding: 10px 12px;
+}
+
+.guide-checklist strong,
+.guide-checklist span {
+    display: block;
+}
+
+.guide-checklist strong {
+    margin-bottom: 4px;
+}
+
+.guide-checklist span {
+    color: #475569;
+    font-size: 0.88rem;
+    line-height: 1.55;
+}
+
 .metric-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -317,6 +414,15 @@ a:focus-visible {
     .inline-form .form-select,
     .inline-form .form-control {
         width: 100%;
+    }
+
+    .campaign-guide-header {
+        display: grid;
+        gap: 10px;
+    }
+
+    .guide-label {
+        width: fit-content;
     }
 }
 

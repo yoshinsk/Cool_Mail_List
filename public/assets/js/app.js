@@ -10,6 +10,7 @@
     }
 
     const fields = Array.from(form.querySelectorAll('[data-guide-message]'));
+    const submitButtons = Array.from(form.querySelectorAll('button[type="submit"], input[type="submit"]'));
     const popovers = new Map();
     form.noValidate = true;
 
@@ -99,6 +100,18 @@
         event.preventDefault();
         event.stopPropagation();
         guideInvalidField(field);
+    });
+
+    submitButtons.forEach(function (button) {
+        button.addEventListener('click', function (event) {
+            const field = firstInvalidField();
+            if (!field) {
+                return;
+            }
+            event.preventDefault();
+            event.stopPropagation();
+            guideInvalidField(field);
+        });
     });
 })();
 
